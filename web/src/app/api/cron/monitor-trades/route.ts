@@ -25,7 +25,7 @@ export async function GET(request: Request) {
     // Get all active trading plans
     const { data: activePlans, error: plansError } = await supabase
       .from('trading_plans')
-      .select('*, wallet_config!inner(public_key, encrypted_private_key)')
+      .select('*')
       .eq('status', 'active')
 
     if (plansError) {
@@ -41,11 +41,29 @@ export async function GET(request: Request) {
 
     for (const plan of activePlans) {
       try {
+        // Get wallet config for this user
+        const { data: wallet, error: walletError } = await supabase
+          .from('wallet_config')
+          .select('public_key, encrypted_private_key')
+          .eq('user_id', plan.user_id)
+          .single()
+
+        if (walletError || !wallet) {
+          console.error(`No wallet found for user ${plan.user_id}`)
+          results.push({
+            planId: plan.id,
+            action: 'error',
+            success: false,
+            error: 'No wallet configured',
+          })
+          continue
+        }
+
         // Get current price quote
         const quote = await jupiter.getQuote({
           outputMint: plan.token_mint,
           amountSol: 0.001, // Small amount just to get price
-          taker: plan.wallet_config.public_key,
+          taker: wallet.public_key,
         })
 
         const tokensForSmallAmount = parseInt(quote.outAmount)
@@ -69,12 +87,12 @@ export async function GET(request: Request) {
 
         if (triggered && plan.amount_tokens) {
           // Execute exit trade
-          const privateKey = decryptPrivateKey(plan.wallet_config.encrypted_private_key)
+          const privateKey = decryptPrivateKey(wallet.encrypted_private_key)
 
           const sellQuote = await jupiter.getSellQuote({
             inputMint: plan.token_mint,
             amountTokens: plan.amount_tokens.toString(),
-            taker: plan.wallet_config.public_key,
+            taker: wallet.public_key,
           })
 
           if (!sellQuote.transaction) {
