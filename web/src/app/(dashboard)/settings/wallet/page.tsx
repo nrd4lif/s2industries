@@ -5,6 +5,8 @@ import { useRouter } from 'next/navigation'
 
 export default function WalletSettingsPage() {
   const [privateKey, setPrivateKey] = useState('')
+  const [phantomKey, setPhantomKey] = useState('')
+  const [generatedPublicKey, setGeneratedPublicKey] = useState('')
   const [label, setLabel] = useState('Trading Wallet')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -31,6 +33,8 @@ export default function WalletSettingsPage() {
       const data = await res.json()
       if (data.privateKey) {
         setPrivateKey(data.privateKey)
+        setPhantomKey(data.phantomImportKey)
+        setGeneratedPublicKey(data.publicKey)
       }
     } catch {
       setError('Failed to generate wallet')
@@ -130,6 +134,35 @@ export default function WalletSettingsPage() {
               {generating ? 'Generating...' : 'Generate New Wallet'}
             </button>
           </div>
+
+          {generatedPublicKey && (
+            <div className="mb-6 p-4 bg-zinc-800 rounded-lg space-y-3">
+              <div>
+                <p className="text-sm text-zinc-400 mb-1">Public Key</p>
+                <p className="text-white font-mono text-xs break-all">{generatedPublicKey}</p>
+              </div>
+              <div>
+                <p className="text-sm text-zinc-400 mb-1">For Phantom Import (copy this)</p>
+                <div className="relative">
+                  <textarea
+                    readOnly
+                    value={phantomKey}
+                    className="w-full px-3 py-2 bg-zinc-900 border border-zinc-700 rounded-lg text-white font-mono text-xs h-20"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => navigator.clipboard.writeText(phantomKey)}
+                    className="absolute top-2 right-2 px-2 py-1 bg-zinc-700 hover:bg-zinc-600 text-xs text-white rounded"
+                  >
+                    Copy
+                  </button>
+                </div>
+                <p className="text-xs text-yellow-500 mt-2">
+                  Save this somewhere safe! You won&apos;t see it again after saving.
+                </p>
+              </div>
+            </div>
+          )}
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
