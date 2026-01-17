@@ -22,8 +22,175 @@ export async function GET(request: Request) {
   const supabase = createServiceClient()
   const jupiter = new JupiterClient(process.env.JUPITER_API_KEY || '')
 
+  const results: Array<{ planId: string; action: string; success: boolean; error?: string }> = []
+
   try {
-    // Get all active trading plans
+    // ========================================
+    // PART 1: Process waiting_entry plans (limit buy orders)
+    // ========================================
+    const { data: waitingPlans, error: waitingError } = await supabase
+      .from('trading_plans')
+      .select('*')
+      .eq('status', 'waiting_entry')
+
+    if (waitingError) {
+      console.error('Failed to fetch waiting plans:', waitingError)
+    }
+
+    if (waitingPlans && waitingPlans.length > 0) {
+      for (const plan of waitingPlans) {
+        try {
+          // Check if expired
+          const waitingSince = new Date(plan.waiting_since)
+          const maxWaitMs = (plan.max_wait_hours || 24) * 60 * 60 * 1000
+          const now = new Date()
+
+          if (now.getTime() - waitingSince.getTime() > maxWaitMs) {
+            // Expired - update status
+            await supabase
+              .from('trading_plans')
+              .update({ status: 'expired' })
+              .eq('id', plan.id)
+
+            results.push({
+              planId: plan.id,
+              action: 'expired',
+              success: true,
+            })
+            continue
+          }
+
+          // Get wallet
+          const { data: wallet, error: walletError } = await supabase
+            .from('wallet_config')
+            .select('public_key, encrypted_private_key')
+            .eq('user_id', plan.user_id)
+            .single()
+
+          if (walletError || !wallet) {
+            results.push({
+              planId: plan.id,
+              action: 'error',
+              success: false,
+              error: 'No wallet configured',
+            })
+            continue
+          }
+
+          // Get current price quote
+          const quote = await jupiter.getQuote({
+            outputMint: plan.token_mint,
+            amountSol: plan.amount_sol,
+            taker: wallet.public_key,
+          })
+
+          const tokensForAmount = parseInt(quote.outAmount)
+          const currentPriceUsd = quote.outUsdValue / tokensForAmount
+
+          // Log price snapshot
+          await supabase.from('price_snapshots').insert({
+            token_mint: plan.token_mint,
+            price_usd: currentPriceUsd,
+            source: 'jupiter',
+          })
+
+          // Check if price is within threshold of target
+          const targetPrice = plan.target_entry_price
+          const thresholdPercent = plan.entry_threshold_percent || 1.0
+          const priceDiffPercent = ((currentPriceUsd - targetPrice) / targetPrice) * 100
+
+          // Buy if price is at or below target (within threshold)
+          if (priceDiffPercent <= thresholdPercent) {
+            // Price hit! Execute buy
+            const privateKey = decryptPrivateKey(wallet.encrypted_private_key)
+
+            if (!quote.transaction) {
+              results.push({
+                planId: plan.id,
+                action: 'waiting_entry',
+                success: false,
+                error: 'No transaction returned',
+              })
+              continue
+            }
+
+            const result = await jupiter.signAndExecute({
+              orderResponse: quote,
+              privateKey,
+            })
+
+            if (result.status !== 'Success') {
+              results.push({
+                planId: plan.id,
+                action: 'buy_failed',
+                success: false,
+                error: result.error,
+              })
+              continue
+            }
+
+            // Calculate actual entry price
+            const tokensReceived = parseInt(result.outputAmountResult || quote.outAmount)
+            const actualEntryPrice = quote.outUsdValue / tokensReceived
+
+            // Update plan to active
+            await supabase
+              .from('trading_plans')
+              .update({
+                status: 'active',
+                amount_tokens: tokensReceived,
+                entry_price_usd: actualEntryPrice,
+                stop_loss_price: actualEntryPrice * (1 - plan.stop_loss_percent / 100),
+                take_profit_price: actualEntryPrice * (1 + plan.take_profit_percent / 100),
+                entry_tx_signature: result.signature,
+              })
+              .eq('id', plan.id)
+
+            // Log the buy trade
+            await supabase.from('trades').insert({
+              user_id: plan.user_id,
+              trading_plan_id: plan.id,
+              token_mint: plan.token_mint,
+              token_symbol: plan.token_symbol,
+              side: 'buy',
+              amount_in: plan.amount_sol,
+              amount_out: tokensReceived,
+              input_mint: 'So11111111111111111111111111111111111111112',
+              output_mint: plan.token_mint,
+              price_usd: actualEntryPrice,
+              tx_signature: result.signature,
+            })
+
+            results.push({
+              planId: plan.id,
+              action: 'limit_buy_executed',
+              success: true,
+            })
+          } else {
+            results.push({
+              planId: plan.id,
+              action: 'waiting_entry',
+              success: true,
+            })
+          }
+
+          // Small delay to respect rate limits
+          await new Promise(resolve => setTimeout(resolve, 500))
+        } catch (err) {
+          console.error(`Error processing waiting plan ${plan.id}:`, err)
+          results.push({
+            planId: plan.id,
+            action: 'error',
+            success: false,
+            error: err instanceof Error ? err.message : 'Unknown error',
+          })
+        }
+      }
+    }
+
+    // ========================================
+    // PART 2: Process active plans (monitor for exit)
+    // ========================================
     const { data: activePlans, error: plansError } = await supabase
       .from('trading_plans')
       .select('*')
@@ -35,10 +202,12 @@ export async function GET(request: Request) {
     }
 
     if (!activePlans || activePlans.length === 0) {
-      return NextResponse.json({ message: 'No active plans', processed: 0 })
+      return NextResponse.json({
+        message: 'No active plans',
+        processed: results.length,
+        results,
+      })
     }
-
-    const results: Array<{ planId: string; action: string; success: boolean; error?: string }> = []
 
     for (const plan of activePlans) {
       try {
@@ -207,7 +376,9 @@ export async function GET(request: Request) {
     }
 
     return NextResponse.json({
-      processed: activePlans.length,
+      processed: (waitingPlans?.length || 0) + activePlans.length,
+      waitingPlans: waitingPlans?.length || 0,
+      activePlans: activePlans.length,
       results,
     })
   } catch (err) {

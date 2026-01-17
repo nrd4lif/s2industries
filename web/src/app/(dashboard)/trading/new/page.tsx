@@ -21,6 +21,10 @@ export default function NewTradePage() {
   const [amountSol, setAmountSol] = useState('0.1')
   const [stopLoss, setStopLoss] = useState('')
   const [takeProfit, setTakeProfit] = useState('')
+  const [useLimitBuy, setUseLimitBuy] = useState(false)
+  const [targetEntryPrice, setTargetEntryPrice] = useState('')
+  const [entryThreshold, setEntryThreshold] = useState('1.0')
+  const [maxWaitHours, setMaxWaitHours] = useState('24')
   const [loading, setLoading] = useState(false)
   const [analyzing, setAnalyzing] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -62,6 +66,12 @@ export default function NewTradePage() {
             // Pre-fill suggested stop loss and take profit
             setStopLoss(analysisData.analysis.suggestedStopLossPercent.toFixed(1))
             setTakeProfit(analysisData.analysis.suggestedTakeProfitPercent.toFixed(1))
+            // Pre-fill optimal entry price for limit buy
+            setTargetEntryPrice(analysisData.analysis.optimalEntryPrice.toFixed(10))
+            // Auto-enable limit buy if signal is "wait"
+            if (analysisData.analysis.entrySignal === 'wait') {
+              setUseLimitBuy(true)
+            }
           }
         } catch (err) {
           console.error('Analysis failed:', err)
@@ -93,6 +103,10 @@ export default function NewTradePage() {
           amount_sol: parseFloat(amountSol),
           stop_loss_percent: parseFloat(stopLoss),
           take_profit_percent: parseFloat(takeProfit),
+          use_limit_buy: useLimitBuy,
+          target_entry_price: useLimitBuy ? parseFloat(targetEntryPrice) : undefined,
+          entry_threshold_percent: useLimitBuy ? parseFloat(entryThreshold) : undefined,
+          max_wait_hours: useLimitBuy ? parseInt(maxWaitHours) : undefined,
         }),
       })
 
@@ -111,8 +125,9 @@ export default function NewTradePage() {
   }
 
   const currentPrice = analysis?.currentPrice || 0
-  const stopLossPrice = currentPrice * (1 - parseFloat(stopLoss || '0') / 100)
-  const takeProfitPrice = currentPrice * (1 + parseFloat(takeProfit || '0') / 100)
+  const entryPrice = useLimitBuy && targetEntryPrice ? parseFloat(targetEntryPrice) : currentPrice
+  const stopLossPrice = entryPrice * (1 - parseFloat(stopLoss || '0') / 100)
+  const takeProfitPrice = entryPrice * (1 + parseFloat(takeProfit || '0') / 100)
 
   return (
     <div className="max-w-2xl">
@@ -296,6 +311,88 @@ export default function NewTradePage() {
               />
             </div>
 
+            {/* Limit Buy Option */}
+            <div className={`p-4 rounded-lg border ${useLimitBuy ? 'bg-blue-500/10 border-blue-500/30' : 'bg-zinc-800 border-zinc-700'}`}>
+              <label className="flex items-center gap-3 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={useLimitBuy}
+                  onChange={(e) => setUseLimitBuy(e.target.checked)}
+                  className="w-5 h-5 rounded bg-zinc-700 border-zinc-600 text-blue-500 focus:ring-blue-500"
+                />
+                <div>
+                  <span className="text-white font-medium">Use Limit Buy</span>
+                  <p className="text-xs text-zinc-400">Wait for price to reach target before buying</p>
+                </div>
+              </label>
+
+              {useLimitBuy && (
+                <div className="mt-4 space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-zinc-400 mb-1">
+                      Target Entry Price (USD)
+                    </label>
+                    <input
+                      type="number"
+                      value={targetEntryPrice}
+                      onChange={(e) => setTargetEntryPrice(e.target.value)}
+                      className="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      step="0.00000001"
+                    />
+                    <div className="flex justify-between mt-1">
+                      <p className="text-xs text-zinc-500">
+                        Current: ${currentPrice.toFixed(8)}
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => setTargetEntryPrice(analysis?.optimalEntryPrice.toFixed(10) || '')}
+                        className="text-xs text-blue-400 hover:text-blue-300"
+                      >
+                        Use optimal (${analysis?.optimalEntryPrice.toFixed(8)})
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-zinc-400 mb-1">
+                        Threshold (%)
+                      </label>
+                      <input
+                        type="number"
+                        value={entryThreshold}
+                        onChange={(e) => setEntryThreshold(e.target.value)}
+                        className="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        min="0.1"
+                        max="10"
+                        step="0.1"
+                      />
+                      <p className="text-xs text-zinc-500 mt-1">
+                        Buy within ±{entryThreshold}% of target
+                      </p>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-zinc-400 mb-1">
+                        Max Wait (hours)
+                      </label>
+                      <input
+                        type="number"
+                        value={maxWaitHours}
+                        onChange={(e) => setMaxWaitHours(e.target.value)}
+                        className="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        min="1"
+                        max="168"
+                        step="1"
+                      />
+                      <p className="text-xs text-zinc-500 mt-1">
+                        Expires if not filled
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-zinc-400 mb-1">
@@ -342,11 +439,38 @@ export default function NewTradePage() {
             {/* Summary */}
             <div className="p-4 bg-zinc-800 rounded-lg space-y-2">
               <h3 className="text-sm font-medium text-zinc-400">Trade Summary</h3>
-              <div className="flex justify-between text-sm">
-                <span className="text-zinc-400">Entry</span>
-                <span className="text-white">{amountSol} SOL @ ${analysis.currentPrice.toFixed(8)}</span>
-              </div>
-              <div className="flex justify-between text-sm">
+              {useLimitBuy ? (
+                <>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-zinc-400">Order Type</span>
+                    <span className="text-blue-400">Limit Buy</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-zinc-400">Target Entry</span>
+                    <span className="text-white">{amountSol} SOL @ ${parseFloat(targetEntryPrice).toFixed(8)}</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-zinc-400">Current Price</span>
+                    <span className="text-zinc-400">${analysis.currentPrice.toFixed(8)}</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-zinc-400">Price Difference</span>
+                    <span className={analysis.currentPrice > parseFloat(targetEntryPrice) ? 'text-green-400' : 'text-yellow-400'}>
+                      {(((parseFloat(targetEntryPrice) - analysis.currentPrice) / analysis.currentPrice) * 100).toFixed(2)}%
+                    </span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-zinc-400">Expires In</span>
+                    <span className="text-zinc-400">{maxWaitHours} hours</span>
+                  </div>
+                </>
+              ) : (
+                <div className="flex justify-between text-sm">
+                  <span className="text-zinc-400">Entry</span>
+                  <span className="text-white">{amountSol} SOL @ ${analysis.currentPrice.toFixed(8)} (Market)</span>
+                </div>
+              )}
+              <div className="flex justify-between text-sm pt-2 border-t border-zinc-700">
                 <span className="text-zinc-400">Stop Loss</span>
                 <span className="text-red-400">-{stopLoss}% (${stopLossPrice.toFixed(8)})</span>
               </div>

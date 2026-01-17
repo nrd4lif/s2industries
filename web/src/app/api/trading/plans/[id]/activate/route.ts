@@ -14,21 +14,53 @@ export async function POST(request: Request, context: RouteContext) {
     const user = await requireAuth()
     const supabase = await createClient()
 
-    // Get the plan
+    // Get the plan (must be in pending status)
     const { data: plan, error: planError } = await supabase
       .from('trading_plans')
       .select('*')
       .eq('id', id)
       .eq('user_id', user.id)
-      .eq('status', 'draft')
+      .eq('status', 'pending')
       .single()
 
     if (planError || !plan) {
       return NextResponse.json(
-        { error: 'Plan not found or not in draft status' },
+        { error: 'Plan not found or not in pending status' },
         { status: 404 }
       )
     }
+
+    // Check if this is a limit buy order
+    const isLimitBuy = plan.target_entry_price !== null
+
+    if (isLimitBuy) {
+      // For limit buy, transition to waiting_entry status
+      const { error: updateError } = await supabase
+        .from('trading_plans')
+        .update({
+          status: 'waiting_entry',
+          waiting_since: new Date().toISOString(),
+        })
+        .eq('id', id)
+
+      if (updateError) {
+        return NextResponse.json(
+          { error: 'Failed to activate limit order' },
+          { status: 500 }
+        )
+      }
+
+      return NextResponse.json({
+        success: true,
+        status: 'waiting_entry',
+        targetPrice: plan.target_entry_price,
+        thresholdPercent: plan.entry_threshold_percent,
+        maxWaitHours: plan.max_wait_hours,
+        message: `Limit order activated. Will buy when price reaches $${plan.target_entry_price.toFixed(8)} (±${plan.entry_threshold_percent}%)`,
+      })
+    }
+
+    // Market buy - execute immediately
 
     // Get wallet with encrypted private key
     const { data: wallet, error: walletError } = await supabase

@@ -9,6 +9,11 @@ export const createTradingPlanSchema = z.object({
   amount_sol: z.number().positive().max(1000),  // Max 1000 SOL per trade for safety
   stop_loss_percent: z.number().min(1).max(50),  // 1-50% stop loss
   take_profit_percent: z.number().min(1).max(500),  // 1-500% take profit
+  // Limit buy options
+  use_limit_buy: z.boolean().optional().default(false),
+  target_entry_price: z.number().positive().optional(),  // Target USD price to buy at
+  entry_threshold_percent: z.number().min(0.1).max(10).optional().default(1.0),  // Buy within X% of target
+  max_wait_hours: z.number().min(1).max(168).optional().default(24),  // Max hours to wait (1-168, default 24)
 })
 
 // Activate a draft plan
