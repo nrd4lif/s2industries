@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { JupiterClient } from '@/lib/jupiter'
 import { decryptPrivateKey } from '@/lib/crypto'
+import { sendTradeExecutedEmail } from '@/lib/email'
 
 // Use service role for cron job (bypasses RLS)
 function createServiceClient() {
@@ -153,6 +154,31 @@ export async function GET(request: Request) {
             price_usd: currentPriceUsd,
             tx_signature: result.signature,
           })
+
+          // Send email notification
+          try {
+            // Get user email from Supabase Auth
+            const { data: userData } = await supabase.auth.admin.getUserById(plan.user_id)
+            const userEmail = userData?.user?.email
+
+            if (userEmail) {
+              await sendTradeExecutedEmail({
+                to: userEmail,
+                tokenSymbol: plan.token_symbol || 'Unknown',
+                tokenMint: plan.token_mint,
+                triggeredBy: triggered,
+                entryPriceSol: plan.amount_sol / (plan.amount_tokens || 1),
+                exitPriceSol: solReceived / (plan.amount_tokens || 1),
+                amountSol: plan.amount_sol,
+                profitLossSol,
+                profitLossPercent,
+                txSignature: result.signature,
+              })
+            }
+          } catch (emailErr) {
+            console.error('Failed to send trade email:', emailErr)
+            // Don't fail the whole operation if email fails
+          }
 
           results.push({
             planId: plan.id,

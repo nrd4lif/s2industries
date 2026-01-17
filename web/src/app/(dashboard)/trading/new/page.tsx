@@ -1,7 +1,7 @@
 'use client'
 
-import { useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useState, useEffect } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { PriceAnalysis } from '@/lib/birdeye'
 
 interface TokenInfo {
@@ -13,7 +13,9 @@ interface TokenInfo {
 }
 
 export default function NewTradePage() {
-  const [tokenMint, setTokenMint] = useState('')
+  const searchParams = useSearchParams()
+  const initialToken = searchParams.get('token') || ''
+  const [tokenMint, setTokenMint] = useState(initialToken)
   const [tokenInfo, setTokenInfo] = useState<TokenInfo | null>(null)
   const [analysis, setAnalysis] = useState<PriceAnalysis | null>(null)
   const [amountSol, setAmountSol] = useState('0.1')
@@ -23,6 +25,14 @@ export default function NewTradePage() {
   const [analyzing, setAnalyzing] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const router = useRouter()
+
+  // Auto-search if token is provided in URL
+  useEffect(() => {
+    if (initialToken) {
+      handleSearch()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const handleSearch = async () => {
     if (!tokenMint) return
@@ -163,6 +173,49 @@ export default function NewTradePage() {
                   <p className="text-white font-medium">${analysis.currentPrice.toFixed(8)}</p>
                   <p className={`text-sm ${analysis.priceChangePercent24h >= 0 ? 'text-green-400' : 'text-red-400'}`}>
                     {analysis.priceChangePercent24h >= 0 ? '+' : ''}{analysis.priceChangePercent24h.toFixed(2)}% (24h)
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Entry Signal */}
+            <div className={`p-4 rounded-lg border ${
+              analysis.entrySignal === 'strong_buy'
+                ? 'bg-green-500/20 border-green-500/40'
+                : analysis.entrySignal === 'buy'
+                ? 'bg-green-500/10 border-green-500/30'
+                : analysis.entrySignal === 'wait'
+                ? 'bg-yellow-500/10 border-yellow-500/30'
+                : 'bg-red-500/10 border-red-500/30'
+            }`}>
+              <div className="flex items-center justify-between mb-2">
+                <h3 className="text-sm font-medium text-white">Entry Signal</h3>
+                <span className={`px-2 py-1 rounded text-xs font-medium ${
+                  analysis.entrySignal === 'strong_buy'
+                    ? 'bg-green-500/30 text-green-300'
+                    : analysis.entrySignal === 'buy'
+                    ? 'bg-green-500/20 text-green-400'
+                    : analysis.entrySignal === 'wait'
+                    ? 'bg-yellow-500/20 text-yellow-400'
+                    : 'bg-red-500/20 text-red-400'
+                }`}>
+                  {analysis.entrySignal.replace('_', ' ').toUpperCase()}
+                </span>
+              </div>
+              <p className="text-sm text-zinc-300">{analysis.entrySignalReason}</p>
+              <div className="mt-3 grid grid-cols-2 gap-4 pt-3 border-t border-white/10">
+                <div>
+                  <p className="text-xs text-zinc-500">Optimal Entry</p>
+                  <p className="text-white font-medium">${analysis.optimalEntryPrice.toFixed(8)}</p>
+                  <p className={`text-xs ${analysis.currentVsOptimalPercent <= 0 ? 'text-green-400' : 'text-yellow-400'}`}>
+                    {analysis.currentVsOptimalPercent > 0 ? '+' : ''}{analysis.currentVsOptimalPercent.toFixed(1)}% from current
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs text-zinc-500">Expected Profit</p>
+                  <p className="text-green-400 font-medium">+{analysis.expectedProfitAtCurrent.toFixed(1)}%</p>
+                  <p className="text-xs text-zinc-500">
+                    ({analysis.expectedProfitAtOptimal.toFixed(1)}% at optimal)
                   </p>
                 </div>
               </div>

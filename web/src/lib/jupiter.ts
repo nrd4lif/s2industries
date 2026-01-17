@@ -64,6 +64,51 @@ interface JupiterSearchResponse {
   tokens: JupiterTokenInfo[]
 }
 
+// Trending token response from Jupiter Tokens API v2
+export interface TrendingToken {
+  id: string
+  name: string
+  symbol: string
+  icon: string
+  decimals: number
+  twitter?: string
+  telegram?: string
+  website?: string
+  circSupply: number
+  totalSupply: number
+  fdv: number
+  mcap: number
+  usdPrice: number
+  liquidity: number
+  stats5m: TokenStats
+  stats1h: TokenStats
+  stats6h: TokenStats
+  stats24h: TokenStats
+  firstPool?: {
+    createdAt: string
+    poolAddress: string
+  }
+  isSus: boolean
+  mintAuthority: boolean
+  freezeAuthority: boolean
+  topHolderPercentage: number
+  isVerified: boolean
+}
+
+interface TokenStats {
+  priceChange: number  // Percentage
+  holderChange: number
+  liquidityChange: number
+  volume: number
+  buyVolume: number
+  sellVolume: number
+  numBuys: number
+  numSells: number
+}
+
+export type TrendingCategory = 'toptrending' | 'toptraded' | 'toporganicscore'
+export type TrendingInterval = '5m' | '1h' | '6h' | '24h'
+
 export class JupiterClient {
   private apiKey: string
 
@@ -254,6 +299,31 @@ export class JupiterClient {
       priceUsd: quote.inUsdValue,  // USD value of 1 SOL
       priceSol: 1 / tokensReceived,
     }
+  }
+
+  /**
+   * Get trending/top tokens from Jupiter
+   * Categories: toptrending, toptraded, toporganicscore
+   * Intervals: 5m, 1h, 6h, 24h
+   */
+  async getTrendingTokens(params: {
+    category: TrendingCategory
+    interval: TrendingInterval
+    limit?: number
+  }): Promise<TrendingToken[]> {
+    const url = new URL(`https://api.jup.ag/tokens/v2/${params.category}/${params.interval}`)
+    if (params.limit) {
+      url.searchParams.set('limit', params.limit.toString())
+    }
+
+    const res = await fetch(url.toString(), { headers: this.headers })
+
+    if (!res.ok) {
+      const errorText = await res.text()
+      throw new Error(`Jupiter trending failed: ${res.status} - ${errorText}`)
+    }
+
+    return res.json()
   }
 }
 

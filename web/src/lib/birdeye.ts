@@ -38,6 +38,17 @@ export interface PriceAnalysis {
   support: number
   resistance: number
 
+  // Optimal entry analysis
+  optimalEntryPrice: number  // Best price to buy at based on analysis
+  optimalEntryReason: string
+  currentVsOptimalPercent: number  // How far current price is from optimal (negative = cheaper)
+  entrySignal: 'strong_buy' | 'buy' | 'wait' | 'avoid'  // Buy signal based on current vs optimal
+  entrySignalReason: string
+
+  // Expected profit if entering at current price vs optimal
+  expectedProfitAtCurrent: number  // Expected % profit if buying now
+  expectedProfitAtOptimal: number  // Expected % profit if buying at optimal
+
   // Scalping suitability score (0-100)
   scalpingScore: number
   scalpingVerdict: 'good' | 'moderate' | 'poor'
@@ -244,6 +255,78 @@ export class BirdeyeClient {
       }
     }
 
+    // Calculate optimal entry point
+    // Strategy: Look for price near support level with bullish momentum
+    // The optimal entry is near support but with signs of reversal
+
+    // Find recent swing lows (local minimums) as potential entry points
+    const recentPrices = closes.slice(-16)  // Last 4 hours
+    const swingLows: number[] = []
+    for (let i = 1; i < recentPrices.length - 1; i++) {
+      if (recentPrices[i] < recentPrices[i - 1] && recentPrices[i] < recentPrices[i + 1]) {
+        swingLows.push(recentPrices[i])
+      }
+    }
+
+    // Calculate VWAP (Volume Weighted Average Price) as a fair value indicator
+    const totalVolumePrice = candles.reduce((sum, c) => sum + (c.c * c.v), 0)
+    const totalVolume = candles.reduce((sum, c) => sum + c.v, 0)
+    const vwap = totalVolume > 0 ? totalVolumePrice / totalVolume : mean
+
+    // Calculate optimal entry based on multiple factors
+    let optimalEntryPrice: number
+    let optimalEntryReason: string
+
+    if (trend === 'bullish') {
+      // In uptrend: buy on pullbacks to VWAP or recent swing lows
+      const recentSwingLow = swingLows.length > 0 ? Math.max(...swingLows) : support
+      optimalEntryPrice = Math.max(recentSwingLow, vwap * 0.995)  // Slight discount to VWAP
+      optimalEntryReason = `Bullish trend - optimal entry near VWAP ($${vwap.toPrecision(4)}) or recent pullback levels`
+    } else if (trend === 'bearish') {
+      // In downtrend: wait for support test or significant discount
+      optimalEntryPrice = support * 1.01  // Just above support
+      optimalEntryReason = `Bearish trend - wait for support level test at $${support.toPrecision(4)}`
+    } else {
+      // Sideways: buy near support
+      optimalEntryPrice = support + (resistance - support) * 0.2  // Lower 20% of range
+      optimalEntryReason = `Sideways market - buy near lower range at $${optimalEntryPrice.toPrecision(4)}`
+    }
+
+    // Calculate how far current price is from optimal
+    const currentVsOptimalPercent = ((currentPrice - optimalEntryPrice) / optimalEntryPrice) * 100
+
+    // Determine entry signal
+    let entrySignal: 'strong_buy' | 'buy' | 'wait' | 'avoid'
+    let entrySignalReason: string
+
+    // Check if current price is within acceptable range of optimal
+    const acceptableRangePercent = volatility * 0.5  // Half the volatility as acceptable buffer
+
+    if (scalpingVerdict === 'poor') {
+      entrySignal = 'avoid'
+      entrySignalReason = `Poor scalping conditions - ${scalpingReason}`
+    } else if (currentVsOptimalPercent <= -acceptableRangePercent) {
+      // Current price is significantly below optimal (good deal)
+      entrySignal = 'strong_buy'
+      entrySignalReason = `Price is ${Math.abs(currentVsOptimalPercent).toFixed(1)}% below optimal entry - excellent opportunity`
+    } else if (currentVsOptimalPercent <= acceptableRangePercent) {
+      // Current price is near optimal
+      entrySignal = 'buy'
+      entrySignalReason = `Price is within ${acceptableRangePercent.toFixed(1)}% of optimal entry`
+    } else if (currentVsOptimalPercent <= acceptableRangePercent * 2) {
+      // Price is somewhat above optimal but still reasonable
+      entrySignal = 'wait'
+      entrySignalReason = `Price is ${currentVsOptimalPercent.toFixed(1)}% above optimal - consider waiting for pullback`
+    } else {
+      // Price is too far above optimal
+      entrySignal = 'wait'
+      entrySignalReason = `Price is ${currentVsOptimalPercent.toFixed(1)}% above optimal - wait for better entry`
+    }
+
+    // Calculate expected profits
+    const expectedProfitAtCurrent = ((suggestedTakeProfit - currentPrice) / currentPrice) * 100
+    const expectedProfitAtOptimal = ((suggestedTakeProfit - optimalEntryPrice) / optimalEntryPrice) * 100
+
     return {
       currentPrice,
       high24h,
@@ -261,6 +344,13 @@ export class BirdeyeClient {
       suggestedTakeProfitPercent,
       support,
       resistance,
+      optimalEntryPrice,
+      optimalEntryReason,
+      currentVsOptimalPercent,
+      entrySignal,
+      entrySignalReason,
+      expectedProfitAtCurrent,
+      expectedProfitAtOptimal,
       scalpingScore,
       scalpingVerdict,
       scalpingReason,
