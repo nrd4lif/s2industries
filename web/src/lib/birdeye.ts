@@ -70,7 +70,7 @@ export class BirdeyeClient {
     timeFrom: number  // Unix timestamp
     timeTo: number
   }): Promise<OHLCVCandle[]> {
-    const url = new URL(`${BIRDEYE_API_URL}/defi/v3/ohlcv`)
+    const url = new URL(`${BIRDEYE_API_URL}/defi/ohlcv`)
     url.searchParams.set('address', params.address)
     url.searchParams.set('type', params.interval)
     url.searchParams.set('time_from', params.timeFrom.toString())
@@ -79,7 +79,9 @@ export class BirdeyeClient {
     const res = await fetch(url.toString(), { headers: this.headers })
 
     if (!res.ok) {
-      throw new Error(`Birdeye OHLCV failed: ${res.status}`)
+      const errorText = await res.text()
+      console.error('Birdeye error response:', errorText)
+      throw new Error(`Birdeye OHLCV failed: ${res.status} - ${errorText}`)
     }
 
     const data = await res.json() as OHLCVResponse
