@@ -82,14 +82,42 @@ export class JupiterClient {
    * Search for tokens by symbol, name, or mint address
    */
   async searchToken(query: string): Promise<JupiterTokenInfo[]> {
-    const url = `https://api.jup.ag/tokens/v1/search?query=${encodeURIComponent(query)}`
+    // Try the token search API
+    const url = `https://api.jup.ag/tokens/v1/token/${encodeURIComponent(query)}`
     const res = await fetch(url, { headers: this.headers })
 
-    if (!res.ok) {
-      throw new Error(`Jupiter search failed: ${res.status}`)
+    if (res.ok) {
+      // Direct token lookup returns a single token
+      const data = await res.json()
+      if (data && data.address) {
+        return [{
+          mint: data.address,
+          symbol: data.symbol,
+          name: data.name,
+          decimals: data.decimals,
+          logoURI: data.logoURI,
+        }]
+      }
     }
 
-    const data = await res.json() as JupiterTokenInfo[]
+    // Try search endpoint as fallback
+    const searchUrl = `https://api.jup.ag/tokens/v1/search?query=${encodeURIComponent(query)}`
+    const searchRes = await fetch(searchUrl, { headers: this.headers })
+
+    if (!searchRes.ok) {
+      // If both fail, try treating it as a mint address directly
+      if (query.length >= 32 && query.length <= 44) {
+        return [{
+          mint: query,
+          symbol: 'Unknown',
+          name: 'Unknown Token',
+          decimals: 9,
+        }]
+      }
+      throw new Error(`Jupiter search failed: ${searchRes.status}`)
+    }
+
+    const data = await searchRes.json() as JupiterTokenInfo[]
     return data
   }
 
