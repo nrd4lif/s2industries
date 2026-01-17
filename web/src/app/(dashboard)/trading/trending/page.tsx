@@ -1,13 +1,13 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { TrendingToken, TrendingCategory, TrendingInterval } from '@/lib/jupiter'
 import { PriceAnalysis } from '@/lib/birdeye'
 
 interface AnalysisResult {
   token: TrendingToken
-  analysis?: PriceAnalysis
+  analysis?: Partial<PriceAnalysis>
   error?: string
 }
 
@@ -18,6 +18,8 @@ interface TrendingResponse {
   interval: string
   count: number
   warning?: string
+  fetchedAt?: string | null
+  cached?: boolean
 }
 
 export default function TrendingPage() {
@@ -26,8 +28,35 @@ export default function TrendingPage() {
   const [data, setData] = useState<TrendingResponse | null>(null)
   const [loading, setLoading] = useState(false)
   const [analyzing, setAnalyzing] = useState(false)
+  const [initialLoading, setInitialLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const router = useRouter()
+
+  // Load cached data on mount
+  useEffect(() => {
+    const loadCached = async () => {
+      try {
+        const params = new URLSearchParams({
+          category,
+          interval,
+          limit: '20',
+          cached: 'true',
+        })
+
+        const res = await fetch(`/api/tokens/trending?${params}`)
+        const result = await res.json()
+
+        if (res.ok && result.trending && result.trending.length > 0) {
+          setData(result)
+        }
+      } catch (err) {
+        console.error('Failed to load cached data:', err)
+      }
+      setInitialLoading(false)
+    }
+
+    loadCached()
+  }, []) // Only on mount
 
   const fetchTrending = async (analyze: boolean = false) => {
     setLoading(true)
@@ -90,6 +119,20 @@ export default function TrendingPage() {
     }
   }
 
+  const formatTimestamp = (timestamp: string) => {
+    const date = new Date(timestamp)
+    const now = new Date()
+    const diffMs = now.getTime() - date.getTime()
+    const diffMins = Math.floor(diffMs / 60000)
+    const diffHours = Math.floor(diffMins / 60)
+
+    if (diffMins < 1) return 'just now'
+    if (diffMins < 60) return `${diffMins} min${diffMins > 1 ? 's' : ''} ago`
+    if (diffHours < 24) return `${diffHours} hour${diffHours > 1 ? 's' : ''} ago`
+
+    return date.toLocaleString()
+  }
+
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
@@ -136,7 +179,7 @@ export default function TrendingPage() {
               disabled={loading}
               className="px-4 py-2 bg-zinc-700 hover:bg-zinc-600 disabled:bg-zinc-800 text-white rounded-lg transition-colors"
             >
-              {loading && !analyzing ? 'Loading...' : 'Fetch'}
+              {loading && !analyzing ? 'Loading...' : 'Fetch Fresh'}
             </button>
             <button
               onClick={() => fetchTrending(true)}
@@ -147,6 +190,23 @@ export default function TrendingPage() {
             </button>
           </div>
         </div>
+
+        {/* Timestamp indicator */}
+        {data?.fetchedAt && (
+          <div className="mt-3 pt-3 border-t border-zinc-800 flex items-center gap-2 text-sm">
+            <span className={data.cached ? 'text-yellow-400' : 'text-green-400'}>
+              {data.cached ? '●' : '●'}
+            </span>
+            <span className="text-zinc-400">
+              {data.cached ? 'Cached data' : 'Fresh data'} from {formatTimestamp(data.fetchedAt)}
+            </span>
+            {data.cached && (
+              <span className="text-zinc-500">
+                — Click "Fetch Fresh" to update
+              </span>
+            )}
+          </div>
+        )}
       </div>
 
       {error && (
@@ -212,30 +272,30 @@ export default function TrendingPage() {
                         <div>
                           <p className="text-xs text-zinc-500 mb-1">Entry Signal</p>
                           <span className={`px-2 py-1 rounded text-xs font-medium ${getSignalColor(result.analysis.entrySignal)}`}>
-                            {result.analysis.entrySignal.replace('_', ' ').toUpperCase()}
+                            {(result.analysis.entrySignal || 'unknown').replace('_', ' ').toUpperCase()}
                           </span>
                         </div>
                         {/* Scalping Score */}
                         <div>
                           <p className="text-xs text-zinc-500 mb-1">Scalp Score</p>
                           <p className={`font-medium ${getVerdictColor(result.analysis.scalpingVerdict)}`}>
-                            {result.analysis.scalpingScore}/100
+                            {result.analysis.scalpingScore ?? '-'}/100
                           </p>
                         </div>
                         {/* Optimal Entry */}
                         <div>
                           <p className="text-xs text-zinc-500 mb-1">Optimal Entry</p>
-                          <p className="text-white">${formatPrice(result.analysis.optimalEntryPrice)}</p>
-                          <p className={`text-xs ${result.analysis.currentVsOptimalPercent <= 0 ? 'text-green-400' : 'text-yellow-400'}`}>
-                            {result.analysis.currentVsOptimalPercent > 0 ? '+' : ''}
-                            {result.analysis.currentVsOptimalPercent.toFixed(1)}% from optimal
+                          <p className="text-white">${formatPrice(result.analysis.optimalEntryPrice ?? 0)}</p>
+                          <p className={`text-xs ${(result.analysis.currentVsOptimalPercent ?? 0) <= 0 ? 'text-green-400' : 'text-yellow-400'}`}>
+                            {(result.analysis.currentVsOptimalPercent ?? 0) > 0 ? '+' : ''}
+                            {(result.analysis.currentVsOptimalPercent ?? 0).toFixed(1)}% from optimal
                           </p>
                         </div>
                         {/* Expected Profit */}
                         <div>
                           <p className="text-xs text-zinc-500 mb-1">Expected Profit</p>
                           <p className="text-green-400 font-medium">
-                            +{result.analysis.expectedProfitAtCurrent.toFixed(1)}%
+                            +{(result.analysis.expectedProfitAtCurrent ?? 0).toFixed(1)}%
                           </p>
                         </div>
                         {/* Trend */}
@@ -245,11 +305,13 @@ export default function TrendingPage() {
                             result.analysis.trend === 'bullish' ? 'text-green-400' :
                             result.analysis.trend === 'bearish' ? 'text-red-400' : 'text-zinc-400'
                           }`}>
-                            {result.analysis.trend.charAt(0).toUpperCase() + result.analysis.trend.slice(1)}
+                            {(result.analysis.trend || 'unknown').charAt(0).toUpperCase() + (result.analysis.trend || 'unknown').slice(1)}
                           </p>
                         </div>
                       </div>
-                      <p className="text-xs text-zinc-500 mt-3">{result.analysis.entrySignalReason}</p>
+                      {result.analysis.entrySignalReason && (
+                        <p className="text-xs text-zinc-500 mt-3">{result.analysis.entrySignalReason}</p>
+                      )}
                     </div>
                   )}
 
@@ -337,12 +399,19 @@ export default function TrendingPage() {
         </div>
       )}
 
-      {!data && !loading && (
+      {!data && !loading && !initialLoading && (
         <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-8 text-center">
-          <p className="text-zinc-400">Click "Fetch" to load trending tokens</p>
+          <p className="text-zinc-400">No cached data available</p>
           <p className="text-zinc-500 text-sm mt-2">
-            Use "Fetch & Analyze" to also run scalping analysis on top tokens
+            Click "Fetch Fresh" to load trending tokens, or "Fetch & Analyze" to also run scalping analysis
           </p>
+        </div>
+      )}
+
+      {initialLoading && (
+        <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-8 text-center">
+          <div className="inline-block animate-spin rounded-full h-8 w-8 border-4 border-zinc-700 border-t-blue-500"></div>
+          <p className="text-zinc-400 mt-4">Loading cached data...</p>
         </div>
       )}
     </div>
