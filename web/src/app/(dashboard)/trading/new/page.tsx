@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { PriceAnalysis } from '@/lib/birdeye'
 
 interface TokenInfo {
   mint: string
@@ -11,21 +12,15 @@ interface TokenInfo {
   logoURI?: string
 }
 
-interface QuoteInfo {
-  priceUsd: number
-  outAmount: string
-  slippageBps: number
-  priceImpact: number
-}
-
 export default function NewTradePage() {
   const [tokenMint, setTokenMint] = useState('')
   const [tokenInfo, setTokenInfo] = useState<TokenInfo | null>(null)
-  const [quote, setQuote] = useState<QuoteInfo | null>(null)
+  const [analysis, setAnalysis] = useState<PriceAnalysis | null>(null)
   const [amountSol, setAmountSol] = useState('0.1')
-  const [stopLoss, setStopLoss] = useState('5')
-  const [takeProfit, setTakeProfit] = useState('10')
+  const [stopLoss, setStopLoss] = useState('')
+  const [takeProfit, setTakeProfit] = useState('')
   const [loading, setLoading] = useState(false)
+  const [analyzing, setAnalyzing] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const router = useRouter()
 
@@ -35,7 +30,7 @@ export default function NewTradePage() {
     setLoading(true)
     setError(null)
     setTokenInfo(null)
-    setQuote(null)
+    setAnalysis(null)
 
     try {
       // Search for token
@@ -46,13 +41,23 @@ export default function NewTradePage() {
         const token = searchData.tokens[0]
         setTokenInfo(token)
 
-        // Get quote
-        const quoteRes = await fetch(`/api/tokens/quote?mint=${token.mint}&amount=${amountSol}`)
-        const quoteData = await quoteRes.json()
+        // Analyze token with Birdeye
+        setAnalyzing(true)
+        try {
+          const analysisRes = await fetch(`/api/tokens/analyze?address=${token.mint}`)
+          const analysisData = await analysisRes.json()
 
-        if (quoteData.quote) {
-          setQuote(quoteData.quote)
+          if (analysisData.analysis) {
+            setAnalysis(analysisData.analysis)
+            // Pre-fill suggested stop loss and take profit
+            setStopLoss(analysisData.analysis.suggestedStopLossPercent.toFixed(1))
+            setTakeProfit(analysisData.analysis.suggestedTakeProfitPercent.toFixed(1))
+          }
+        } catch (err) {
+          console.error('Analysis failed:', err)
+          // Continue without analysis
         }
+        setAnalyzing(false)
       } else {
         setError('Token not found')
       }
@@ -64,7 +69,7 @@ export default function NewTradePage() {
   }
 
   const handleCreatePlan = async () => {
-    if (!tokenInfo || !quote) return
+    if (!tokenInfo) return
 
     setLoading(true)
     setError(null)
@@ -95,18 +100,19 @@ export default function NewTradePage() {
     setLoading(false)
   }
 
-  const stopLossPrice = quote ? quote.priceUsd * (1 - parseFloat(stopLoss) / 100) : 0
-  const takeProfitPrice = quote ? quote.priceUsd * (1 + parseFloat(takeProfit) / 100) : 0
+  const currentPrice = analysis?.currentPrice || 0
+  const stopLossPrice = currentPrice * (1 - parseFloat(stopLoss || '0') / 100)
+  const takeProfitPrice = currentPrice * (1 + parseFloat(takeProfit || '0') / 100)
 
   return (
-    <div className="max-w-xl">
+    <div className="max-w-2xl">
       <h1 className="text-2xl font-bold text-white mb-6">New Trade</h1>
 
       <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-6 space-y-6">
         {/* Token Search */}
         <div>
           <label className="block text-sm font-medium text-zinc-400 mb-1">
-            Token (mint address or symbol)
+            Token (mint address)
           </label>
           <div className="flex gap-2">
             <input
@@ -114,47 +120,115 @@ export default function NewTradePage() {
               value={tokenMint}
               onChange={(e) => setTokenMint(e.target.value)}
               className="flex-1 px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
-              placeholder="BONK, WIF, or mint address..."
+              placeholder="Paste Solana token mint address..."
             />
             <button
               onClick={handleSearch}
               disabled={loading || !tokenMint}
               className="px-4 py-2 bg-zinc-700 hover:bg-zinc-600 disabled:bg-zinc-800 text-white rounded-lg transition-colors"
             >
-              {loading ? '...' : 'Search'}
+              {loading ? '...' : 'Analyze'}
             </button>
           </div>
         </div>
 
-        {/* Token Info */}
-        {tokenInfo && (
-          <div className="p-4 bg-zinc-800 rounded-lg">
-            <div className="flex items-center gap-3">
-              {tokenInfo.logoURI && (
-                <img
-                  src={tokenInfo.logoURI}
-                  alt={tokenInfo.symbol}
-                  className="w-10 h-10 rounded-full"
-                />
-              )}
-              <div>
-                <p className="text-white font-medium">{tokenInfo.symbol}</p>
-                <p className="text-sm text-zinc-400">{tokenInfo.name}</p>
-              </div>
-            </div>
-            {quote && (
-              <div className="mt-3 pt-3 border-t border-zinc-700">
-                <p className="text-sm text-zinc-400">
-                  Current Price: <span className="text-white">${quote.priceUsd.toFixed(8)}</span>
-                </p>
-              </div>
-            )}
+        {/* Loading Analysis */}
+        {analyzing && (
+          <div className="text-center py-8">
+            <div className="inline-block animate-spin rounded-full h-8 w-8 border-4 border-zinc-700 border-t-blue-500"></div>
+            <p className="text-zinc-400 mt-2">Analyzing 24h price history...</p>
           </div>
         )}
 
-        {/* Trade Parameters */}
-        {tokenInfo && quote && (
+        {/* Token Info + Analysis */}
+        {tokenInfo && analysis && !analyzing && (
           <>
+            {/* Token Header */}
+            <div className="p-4 bg-zinc-800 rounded-lg">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  {tokenInfo.logoURI && (
+                    <img
+                      src={tokenInfo.logoURI}
+                      alt={tokenInfo.symbol}
+                      className="w-10 h-10 rounded-full"
+                    />
+                  )}
+                  <div>
+                    <p className="text-white font-medium">{tokenInfo.symbol}</p>
+                    <p className="text-sm text-zinc-400">{tokenInfo.name}</p>
+                  </div>
+                </div>
+                <div className="text-right">
+                  <p className="text-white font-medium">${analysis.currentPrice.toFixed(8)}</p>
+                  <p className={`text-sm ${analysis.priceChangePercent24h >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                    {analysis.priceChangePercent24h >= 0 ? '+' : ''}{analysis.priceChangePercent24h.toFixed(2)}% (24h)
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Scalping Analysis */}
+            <div className={`p-4 rounded-lg border ${
+              analysis.scalpingVerdict === 'good'
+                ? 'bg-green-500/10 border-green-500/30'
+                : analysis.scalpingVerdict === 'moderate'
+                ? 'bg-yellow-500/10 border-yellow-500/30'
+                : 'bg-red-500/10 border-red-500/30'
+            }`}>
+              <div className="flex items-center justify-between mb-2">
+                <h3 className="text-sm font-medium text-white">Scalping Analysis</h3>
+                <span className={`px-2 py-1 rounded text-xs font-medium ${
+                  analysis.scalpingVerdict === 'good'
+                    ? 'bg-green-500/20 text-green-400'
+                    : analysis.scalpingVerdict === 'moderate'
+                    ? 'bg-yellow-500/20 text-yellow-400'
+                    : 'bg-red-500/20 text-red-400'
+                }`}>
+                  {analysis.scalpingVerdict.toUpperCase()} ({analysis.scalpingScore}/100)
+                </span>
+              </div>
+              <p className="text-sm text-zinc-300">{analysis.scalpingReason}</p>
+            </div>
+
+            {/* 24h Stats */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div className="p-3 bg-zinc-800 rounded-lg">
+                <p className="text-xs text-zinc-500">24h High</p>
+                <p className="text-white font-medium">${analysis.high24h.toFixed(8)}</p>
+              </div>
+              <div className="p-3 bg-zinc-800 rounded-lg">
+                <p className="text-xs text-zinc-500">24h Low</p>
+                <p className="text-white font-medium">${analysis.low24h.toFixed(8)}</p>
+              </div>
+              <div className="p-3 bg-zinc-800 rounded-lg">
+                <p className="text-xs text-zinc-500">Volatility</p>
+                <p className="text-white font-medium">{analysis.volatility.toFixed(1)}%</p>
+              </div>
+              <div className="p-3 bg-zinc-800 rounded-lg">
+                <p className="text-xs text-zinc-500">Trend</p>
+                <p className={`font-medium ${
+                  analysis.trend === 'bullish' ? 'text-green-400' :
+                  analysis.trend === 'bearish' ? 'text-red-400' : 'text-zinc-400'
+                }`}>
+                  {analysis.trend.charAt(0).toUpperCase() + analysis.trend.slice(1)}
+                </p>
+              </div>
+            </div>
+
+            {/* Support/Resistance */}
+            <div className="grid grid-cols-2 gap-4">
+              <div className="p-3 bg-zinc-800 rounded-lg">
+                <p className="text-xs text-zinc-500">Support Level</p>
+                <p className="text-green-400 font-medium">${analysis.support.toFixed(8)}</p>
+              </div>
+              <div className="p-3 bg-zinc-800 rounded-lg">
+                <p className="text-xs text-zinc-500">Resistance Level</p>
+                <p className="text-red-400 font-medium">${analysis.resistance.toFixed(8)}</p>
+              </div>
+            </div>
+
+            {/* Trade Parameters */}
             <div>
               <label className="block text-sm font-medium text-zinc-400 mb-1">
                 Amount (SOL)
@@ -181,9 +255,13 @@ export default function NewTradePage() {
                   className="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                   min="1"
                   max="50"
+                  step="0.1"
                 />
                 <p className="text-xs text-red-400 mt-1">
-                  Sell if price drops to ${stopLossPrice.toFixed(8)}
+                  Sell @ ${stopLossPrice.toFixed(8)}
+                </p>
+                <p className="text-xs text-zinc-500">
+                  Suggested: {analysis.suggestedStopLossPercent.toFixed(1)}%
                 </p>
               </div>
               <div>
@@ -197,9 +275,13 @@ export default function NewTradePage() {
                   className="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                   min="1"
                   max="500"
+                  step="0.1"
                 />
                 <p className="text-xs text-green-400 mt-1">
-                  Sell if price rises to ${takeProfitPrice.toFixed(8)}
+                  Sell @ ${takeProfitPrice.toFixed(8)}
+                </p>
+                <p className="text-xs text-zinc-500">
+                  Suggested: {analysis.suggestedTakeProfitPercent.toFixed(1)}%
                 </p>
               </div>
             </div>
@@ -209,7 +291,7 @@ export default function NewTradePage() {
               <h3 className="text-sm font-medium text-zinc-400">Trade Summary</h3>
               <div className="flex justify-between text-sm">
                 <span className="text-zinc-400">Entry</span>
-                <span className="text-white">{amountSol} SOL @ ${quote.priceUsd.toFixed(8)}</span>
+                <span className="text-white">{amountSol} SOL @ ${analysis.currentPrice.toFixed(8)}</span>
               </div>
               <div className="flex justify-between text-sm">
                 <span className="text-zinc-400">Stop Loss</span>
@@ -219,6 +301,12 @@ export default function NewTradePage() {
                 <span className="text-zinc-400">Take Profit</span>
                 <span className="text-green-400">+{takeProfit}% (${takeProfitPrice.toFixed(8)})</span>
               </div>
+              <div className="flex justify-between text-sm pt-2 border-t border-zinc-700">
+                <span className="text-zinc-400">Risk/Reward</span>
+                <span className="text-white">
+                  1:{(parseFloat(takeProfit) / parseFloat(stopLoss)).toFixed(1)}
+                </span>
+              </div>
             </div>
 
             {error && (
@@ -227,12 +315,21 @@ export default function NewTradePage() {
 
             <button
               onClick={handleCreatePlan}
-              disabled={loading}
+              disabled={loading || !stopLoss || !takeProfit}
               className="w-full py-3 px-4 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-800 disabled:cursor-not-allowed text-white font-medium rounded-lg transition-colors"
             >
               {loading ? 'Creating...' : 'Create Trading Plan'}
             </button>
           </>
+        )}
+
+        {/* Token found but no analysis */}
+        {tokenInfo && !analysis && !analyzing && (
+          <div className="p-4 bg-yellow-500/10 border border-yellow-500/30 rounded-lg">
+            <p className="text-yellow-400 text-sm">
+              Could not fetch price history for this token. You can still create a manual trade plan.
+            </p>
+          </div>
         )}
 
         {error && !tokenInfo && (
