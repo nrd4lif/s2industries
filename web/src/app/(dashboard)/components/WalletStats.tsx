@@ -90,14 +90,17 @@ export default function WalletStats({ publicKey, pendingSol, activeSol }: Wallet
       {balance !== null && balance > 0 && (
         <div className="mt-4">
           <div className="h-2 bg-zinc-800 rounded-full overflow-hidden flex">
-            {/* Green portion = SOL reserved for pending orders */}
-            {pendingSol > 0 && (
-              <div
-                className="bg-yellow-500 h-full"
-                style={{ width: `${Math.min(100, (pendingSol / balance) * 100)}%` }}
-                title={`Pending: ${pendingSol.toFixed(4)} SOL`}
-              />
-            )}
+            {/* Yellow = pending orders, Green = available */}
+            <div
+              className="bg-yellow-500 h-full"
+              style={{ width: `${Math.min(100, (pendingSol / balance) * 100)}%` }}
+              title={`Pending: ${pendingSol.toFixed(4)} SOL`}
+            />
+            <div
+              className="bg-green-500 h-full"
+              style={{ width: `${Math.max(0, Math.min(100, ((balance - pendingSol) / balance) * 100))}%` }}
+              title={`Available: ${available?.toFixed(4)} SOL`}
+            />
           </div>
           <div className="flex justify-between mt-1 text-xs text-zinc-500">
             <span>Pending: {pendingSol.toFixed(4)} SOL ({((pendingSol / balance) * 100).toFixed(1)}%)</span>
