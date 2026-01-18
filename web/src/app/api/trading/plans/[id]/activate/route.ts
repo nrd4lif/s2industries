@@ -109,8 +109,23 @@ export async function POST(request: Request, context: RouteContext) {
     }
 
     // Calculate actual entry price
+    // tokensReceived is in smallest units (with decimals factored in)
+    // quote.outUsdValue is the total USD value of tokens received
+    // quote.inUsdValue is the USD value of SOL spent
     const tokensReceived = parseInt(result.outputAmountResult || quote.outAmount)
-    const entryPriceUsd = quote.outUsdValue / tokensReceived
+
+    // Entry price = USD spent / tokens received (in smallest units)
+    // This gives us price per smallest unit, which we store for consistency
+    const entryPriceUsd = quote.inUsdValue / tokensReceived
+
+    console.log('Trade executed:', {
+      tokensReceived,
+      inUsdValue: quote.inUsdValue,
+      outUsdValue: quote.outUsdValue,
+      entryPriceUsd,
+      stopLossPrice: entryPriceUsd * (1 - plan.stop_loss_percent / 100),
+      takeProfitPrice: entryPriceUsd * (1 + plan.take_profit_percent / 100),
+    })
 
     // Update plan to active
     const { error: updateError } = await supabase
