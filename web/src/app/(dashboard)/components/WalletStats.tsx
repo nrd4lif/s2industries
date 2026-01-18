@@ -33,8 +33,9 @@ export default function WalletStats({ publicKey, pendingSol, activeSol }: Wallet
     return () => clearInterval(interval)
   }, [])
 
-  const totalAllocated = pendingSol + activeSol
-  const available = balance !== null ? Math.max(0, balance - totalAllocated) : null
+  // Available = balance minus pending orders only
+  // activeSol represents tokens already bought (SOL already spent), so don't subtract it
+  const available = balance !== null ? Math.max(0, balance - pendingSol) : null
 
   return (
     <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-4">
@@ -85,28 +86,22 @@ export default function WalletStats({ publicKey, pendingSol, activeSol }: Wallet
         </div>
       </div>
 
-      {/* Allocation bar */}
+      {/* Allocation bar - shows how wallet balance is allocated */}
       {balance !== null && balance > 0 && (
         <div className="mt-4">
           <div className="h-2 bg-zinc-800 rounded-full overflow-hidden flex">
-            {activeSol > 0 && (
-              <div
-                className="bg-green-500 h-full"
-                style={{ width: `${Math.min(100, (activeSol / balance) * 100)}%` }}
-                title={`Active: ${activeSol.toFixed(4)} SOL`}
-              />
-            )}
+            {/* Green portion = SOL reserved for pending orders */}
             {pendingSol > 0 && (
               <div
                 className="bg-yellow-500 h-full"
-                style={{ width: `${Math.min(100 - (activeSol / balance) * 100, (pendingSol / balance) * 100)}%` }}
+                style={{ width: `${Math.min(100, (pendingSol / balance) * 100)}%` }}
                 title={`Pending: ${pendingSol.toFixed(4)} SOL`}
               />
             )}
           </div>
           <div className="flex justify-between mt-1 text-xs text-zinc-500">
-            <span>Allocated: {totalAllocated.toFixed(4)} SOL ({((totalAllocated / balance) * 100).toFixed(1)}%)</span>
-            <span>Free: {available?.toFixed(4)} SOL</span>
+            <span>Pending: {pendingSol.toFixed(4)} SOL ({((pendingSol / balance) * 100).toFixed(1)}%)</span>
+            <span>Available: {available?.toFixed(4)} SOL</span>
           </div>
         </div>
       )}
