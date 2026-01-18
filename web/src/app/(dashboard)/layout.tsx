@@ -24,7 +24,7 @@ export default async function DashboardLayout({
               <Link href="/trading/new" className="text-sm text-zinc-400 hover:text-white transition-colors">
                 New Trade
               </Link>
-              <Link href="/wallet" className="text-sm text-zinc-400 hover:text-white transition-colors">
+              <Link href="/settings/wallet" className="text-sm text-zinc-400 hover:text-white transition-colors">
                 Wallet
               </Link>
             </nav>
