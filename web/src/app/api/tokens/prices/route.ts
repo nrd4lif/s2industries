@@ -21,29 +21,35 @@ export async function GET(request: Request) {
       return NextResponse.json({ prices: {} })
     }
 
-    // Jupiter Price API v2 supports multiple tokens
-    const url = `https://api.jup.ag/price/v2?ids=${mintList.join(',')}`
-    const res = await fetch(url, {
-      headers: {
-        'x-api-key': process.env.JUPITER_API_KEY || '',
-      },
-    })
+    // Jupiter Price API v3 (v2 is deprecated)
+    const url = `https://api.jup.ag/price/v3?ids=${mintList.join(',')}`
+
+    const headers: Record<string, string> = {}
+    if (process.env.JUPITER_API_KEY) {
+      headers['x-api-key'] = process.env.JUPITER_API_KEY
+    }
+
+    const res = await fetch(url, { headers })
 
     if (!res.ok) {
-      console.error('Jupiter price API error:', res.status)
-      return NextResponse.json({ prices: {} })
+      const errorText = await res.text()
+      console.error('Jupiter price API error:', res.status, errorText)
+      return NextResponse.json({ prices: {}, error: `Jupiter API error: ${res.status}` })
     }
 
     const data = await res.json()
+
     const prices: Record<string, number> = {}
 
+    // v3 response format: { "mint": { "usdPrice": number, ... } }
     mintList.forEach(mint => {
-      const tokenData = data.data?.[mint]
-      if (tokenData?.price) {
-        prices[mint] = parseFloat(tokenData.price)
+      const tokenData = data[mint]
+      if (tokenData?.usdPrice) {
+        prices[mint] = tokenData.usdPrice
       }
     })
 
+    console.log('Parsed prices:', prices)
     return NextResponse.json({ prices })
   } catch (err) {
     console.error('Prices fetch error:', err)

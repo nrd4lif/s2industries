@@ -272,11 +272,11 @@ export class JupiterClient {
   }
 
   /**
-   * Get current market price of a token in USD using Jupiter Price API
+   * Get current market price of a token in USD using Jupiter Price API v3
    * Returns the actual token price (not per smallest unit)
    */
   async getTokenPrice(tokenMint: string): Promise<number> {
-    const url = `https://api.jup.ag/price/v2?ids=${tokenMint}`
+    const url = `https://api.jup.ag/price/v3?ids=${tokenMint}`
     const res = await fetch(url, { headers: this.headers })
 
     if (!res.ok) {
@@ -284,13 +284,14 @@ export class JupiterClient {
     }
 
     const data = await res.json()
-    const tokenData = data.data?.[tokenMint]
+    // v3 response format: { "mint": { "usdPrice": number, ... } }
+    const tokenData = data[tokenMint]
 
-    if (!tokenData?.price) {
+    if (!tokenData?.usdPrice) {
       throw new Error(`No price data for token ${tokenMint}`)
     }
 
-    return parseFloat(tokenData.price)
+    return tokenData.usdPrice
   }
 
   /**
