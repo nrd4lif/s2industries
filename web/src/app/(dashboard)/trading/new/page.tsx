@@ -14,10 +14,7 @@ interface TokenInfo {
 
 export default function NewTradePage() {
   const searchParams = useSearchParams()
-  const initialToken = searchParams.get('token') || ''
-  const initialSymbol = searchParams.get('symbol') || ''
-  const initialName = searchParams.get('name') || ''
-  const [tokenMint, setTokenMint] = useState(initialToken)
+  const [tokenMint, setTokenMint] = useState('')
   const [tokenInfo, setTokenInfo] = useState<TokenInfo | null>(null)
   const [analysis, setAnalysis] = useState<PriceAnalysis | null>(null)
   const [amountSol, setAmountSol] = useState('0.1')
@@ -30,18 +27,31 @@ export default function NewTradePage() {
   const [loading, setLoading] = useState(false)
   const [analyzing, setAnalyzing] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [initialized, setInitialized] = useState(false)
   const router = useRouter()
 
-  // Auto-search if token is provided in URL
+  // Get URL params
+  const urlToken = searchParams.get('token') || ''
+  const urlSymbol = searchParams.get('symbol') || ''
+  const urlName = searchParams.get('name') || ''
+
+  // Initialize from URL params and auto-search
   useEffect(() => {
-    if (initialToken) {
-      handleSearch()
+    if (initialized) return
+    if (urlToken) {
+      setTokenMint(urlToken)
+      setInitialized(true)
+      // Trigger search after state is set
+      handleSearchWithParams(urlToken, urlSymbol, urlName)
+    } else {
+      setInitialized(true)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [urlToken, urlSymbol, urlName, initialized])
 
-  const handleSearch = async () => {
-    if (!tokenMint) return
+  // Search with explicit params (used when coming from URL)
+  const handleSearchWithParams = async (mint: string, symbol: string, name: string) => {
+    if (!mint) return
 
     setLoading(true)
     setError(null)
@@ -50,19 +60,19 @@ export default function NewTradePage() {
 
     try {
       // If we have symbol/name from URL params, use them directly
-      if (initialSymbol && initialName && tokenMint === initialToken) {
+      if (symbol && name) {
         const token: TokenInfo = {
-          mint: tokenMint,
-          symbol: initialSymbol,
-          name: initialName,
-          decimals: 9,  // Default, will be refined by analysis if available
+          mint: mint,
+          symbol: symbol,
+          name: name,
+          decimals: 9,
         }
         setTokenInfo(token)
 
         // Analyze token with Birdeye
         setAnalyzing(true)
         try {
-          const analysisRes = await fetch(`/api/tokens/analyze?address=${tokenMint}`)
+          const analysisRes = await fetch(`/api/tokens/analyze?address=${mint}`)
           const analysisData = await analysisRes.json()
 
           if (analysisData.analysis) {
@@ -82,45 +92,61 @@ export default function NewTradePage() {
         return
       }
 
-      // Search for token
-      const searchRes = await fetch(`/api/tokens/search?query=${encodeURIComponent(tokenMint)}`)
-      const searchData = await searchRes.json()
-
-      if (searchData.tokens && searchData.tokens.length > 0) {
-        const token = searchData.tokens[0]
-        setTokenInfo(token)
-
-        // Analyze token with Birdeye
-        setAnalyzing(true)
-        try {
-          const analysisRes = await fetch(`/api/tokens/analyze?address=${token.mint}`)
-          const analysisData = await analysisRes.json()
-
-          if (analysisData.analysis) {
-            setAnalysis(analysisData.analysis)
-            // Pre-fill suggested stop loss and take profit
-            setStopLoss(analysisData.analysis.suggestedStopLossPercent.toFixed(1))
-            setTakeProfit(analysisData.analysis.suggestedTakeProfitPercent.toFixed(1))
-            // Pre-fill optimal entry price for limit buy
-            setTargetEntryPrice(analysisData.analysis.optimalEntryPrice.toFixed(10))
-            // Auto-enable limit buy if signal is "wait"
-            if (analysisData.analysis.entrySignal === 'wait') {
-              setUseLimitBuy(true)
-            }
-          }
-        } catch (err) {
-          console.error('Analysis failed:', err)
-          // Continue without analysis
-        }
-        setAnalyzing(false)
-      } else {
-        setError('Token not found')
-      }
-    } catch {
+      // Fall back to API search
+      await doTokenSearch(mint)
+    } catch (err) {
       setError('Failed to search token')
     }
-
     setLoading(false)
+  }
+
+  // Manual search (user typed in mint address)
+  const handleSearch = async () => {
+    if (!tokenMint) return
+    setLoading(true)
+    setError(null)
+    setTokenInfo(null)
+    setAnalysis(null)
+
+    try {
+      await doTokenSearch(tokenMint)
+    } catch (err) {
+      setError('Failed to search token')
+    }
+    setLoading(false)
+  }
+
+  // Common token search logic
+  const doTokenSearch = async (mint: string) => {
+    const searchRes = await fetch(`/api/tokens/search?query=${encodeURIComponent(mint)}`)
+    const searchData = await searchRes.json()
+
+    if (searchData.tokens && searchData.tokens.length > 0) {
+      const token = searchData.tokens[0]
+      setTokenInfo(token)
+
+      // Analyze token with Birdeye
+      setAnalyzing(true)
+      try {
+        const analysisRes = await fetch(`/api/tokens/analyze?address=${token.mint}`)
+        const analysisData = await analysisRes.json()
+
+        if (analysisData.analysis) {
+          setAnalysis(analysisData.analysis)
+          setStopLoss(analysisData.analysis.suggestedStopLossPercent.toFixed(1))
+          setTakeProfit(analysisData.analysis.suggestedTakeProfitPercent.toFixed(1))
+          setTargetEntryPrice(analysisData.analysis.optimalEntryPrice.toFixed(10))
+          if (analysisData.analysis.entrySignal === 'wait') {
+            setUseLimitBuy(true)
+          }
+        }
+      } catch (err) {
+        console.error('Analysis failed:', err)
+      }
+      setAnalyzing(false)
+    } else {
+      setError('Token not found')
+    }
   }
 
   const handleCreatePlan = async () => {

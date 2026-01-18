@@ -29,7 +29,9 @@ export default async function TradingPlanPage({ params }: PageProps) {
   return (
     <div className="max-w-xl">
       <h1 className="text-2xl font-bold text-white mb-6">
-        {typedPlan.token_symbol || typedPlan.token_mint.slice(0, 8)} Trade
+        {typedPlan.token_symbol && typedPlan.token_symbol !== 'Unknown'
+          ? typedPlan.token_symbol
+          : typedPlan.token_mint.slice(0, 8) + '...'} Trade
       </h1>
 
       <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-6 space-y-6">

@@ -88,7 +88,7 @@ export default async function DashboardPage() {
         ) : (
           <div className="space-y-3">
             {activePlans.map((plan: TradingPlan) => {
-              const isLimitOrder = plan.status === 'waiting_entry'
+              const isLimitOrder = plan.status === 'waiting_entry' || plan.target_entry_price !== null
               const statusColors: Record<string, string> = {
                 active: 'bg-green-500/20 text-green-400',
                 pending: 'bg-yellow-500/20 text-yellow-400',
@@ -108,7 +108,9 @@ export default async function DashboardPage() {
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="text-white font-medium">
-                        {plan.token_symbol || plan.token_mint.slice(0, 8)}
+                        {plan.token_symbol && plan.token_symbol !== 'Unknown'
+                          ? plan.token_symbol
+                          : plan.token_mint.slice(0, 8) + '...'}
                       </p>
                       {isLimitOrder ? (
                         <p className="text-sm text-zinc-400">
@@ -159,7 +161,9 @@ export default async function DashboardPage() {
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-white font-medium">
-                      {trade.token_symbol || trade.token_mint.slice(0, 8)}
+                      {trade.token_symbol && trade.token_symbol !== 'Unknown'
+                        ? trade.token_symbol
+                        : trade.token_mint.slice(0, 8) + '...'}
                     </p>
                     <p className="text-sm text-zinc-400">
                       {trade.status === 'expired'
