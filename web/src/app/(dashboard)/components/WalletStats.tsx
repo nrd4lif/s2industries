@@ -86,26 +86,51 @@ export default function WalletStats({ publicKey, pendingSol, activeSol }: Wallet
         </div>
       </div>
 
-      {/* Allocation bar - shows how wallet balance is allocated */}
-      {balance !== null && balance > 0 && (
+      {/* Allocation bar - shows total portfolio distribution */}
+      {balance !== null && (
         <div className="mt-4">
-          <div className="h-2 bg-zinc-800 rounded-full overflow-hidden flex">
-            {/* Yellow = pending orders, Green = available */}
-            <div
-              className="bg-yellow-500 h-full"
-              style={{ width: `${Math.min(100, (pendingSol / balance) * 100)}%` }}
-              title={`Pending: ${pendingSol.toFixed(4)} SOL`}
-            />
-            <div
-              className="bg-green-500 h-full"
-              style={{ width: `${Math.max(0, Math.min(100, ((balance - pendingSol) / balance) * 100))}%` }}
-              title={`Available: ${available?.toFixed(4)} SOL`}
-            />
-          </div>
-          <div className="flex justify-between mt-1 text-xs text-zinc-500">
-            <span>Pending: {pendingSol.toFixed(4)} SOL ({((pendingSol / balance) * 100).toFixed(1)}%)</span>
-            <span>Available: {available?.toFixed(4)} SOL</span>
-          </div>
+          {(() => {
+            const total = balance + activeSol // Total portfolio = SOL balance + token value
+            if (total <= 0) return null
+            const pendingPct = (pendingSol / total) * 100
+            const availablePct = ((balance - pendingSol) / total) * 100
+            const inTradesPct = (activeSol / total) * 100
+            return (
+              <>
+                <div className="h-2 bg-zinc-800 rounded-full overflow-hidden flex">
+                  {/* Yellow = pending orders */}
+                  {pendingSol > 0 && (
+                    <div
+                      className="bg-yellow-500 h-full"
+                      style={{ width: `${pendingPct}%` }}
+                      title={`Pending: ${pendingSol.toFixed(4)} SOL`}
+                    />
+                  )}
+                  {/* Green = in trades (token value) */}
+                  {activeSol > 0 && (
+                    <div
+                      className="bg-green-500 h-full"
+                      style={{ width: `${inTradesPct}%` }}
+                      title={`In Trades: ${activeSol.toFixed(4)} SOL`}
+                    />
+                  )}
+                  {/* Gray = available SOL */}
+                  <div
+                    className="bg-zinc-500 h-full"
+                    style={{ width: `${Math.max(0, availablePct)}%` }}
+                    title={`Available: ${available?.toFixed(4)} SOL`}
+                  />
+                </div>
+                <div className="flex justify-between mt-1 text-xs text-zinc-500">
+                  <span>
+                    In Trades: {activeSol.toFixed(4)} SOL ({inTradesPct.toFixed(1)}%)
+                    {pendingSol > 0 && ` · Pending: ${pendingSol.toFixed(4)} SOL (${pendingPct.toFixed(1)}%)`}
+                  </span>
+                  <span>Available: {available?.toFixed(4)} SOL ({availablePct.toFixed(1)}%)</span>
+                </div>
+              </>
+            )
+          })()}
         </div>
       )}
     </div>
