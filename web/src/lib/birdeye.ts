@@ -27,6 +27,18 @@ export interface PriceAnalysis {
   trendStrength: number  // 0-100
   avgVolume: number
 
+  // Momentum indicators
+  momentum: {
+    score: number  // 0-100 momentum strength
+    direction: 'up' | 'down' | 'neutral'
+    consistency: number  // 0-100 how consistent the trend is (higher = steadier climb/fall)
+    higherLows: number  // Count of higher lows in last 24h
+    higherHighs: number  // Count of higher highs in last 24h
+    isMomentumPlay: boolean  // True if this is a good momentum entry
+    momentumSignal: 'strong_momentum' | 'building' | 'fading' | 'none'
+    momentumReason: string
+  }
+
   // Suggested trading levels
   suggestedEntry: number
   suggestedStopLoss: number
@@ -42,7 +54,7 @@ export interface PriceAnalysis {
   optimalEntryPrice: number  // Best price to buy at based on analysis
   optimalEntryReason: string
   currentVsOptimalPercent: number  // How far current price is from optimal (negative = cheaper)
-  entrySignal: 'strong_buy' | 'buy' | 'wait' | 'avoid'  // Buy signal based on current vs optimal
+  entrySignal: 'strong_buy' | 'buy' | 'momentum_buy' | 'wait' | 'avoid'  // Buy signal based on current vs optimal
   entrySignalReason: string
 
   // Expected profit if entering at current price vs optimal
@@ -170,6 +182,124 @@ export class BirdeyeClient {
       trendStrength = 100 - Math.abs(trendDiff) * 20
     }
 
+    // ========================================
+    // MOMENTUM ANALYSIS
+    // ========================================
+
+    // Find swing points (local highs and lows) using 3-candle window
+    const swingHighs: { price: number; index: number }[] = []
+    const swingLowsAll: { price: number; index: number }[] = []
+
+    for (let i = 1; i < candles.length - 1; i++) {
+      const prev = candles[i - 1]
+      const curr = candles[i]
+      const next = candles[i + 1]
+
+      // Swing high: higher than both neighbors
+      if (curr.h > prev.h && curr.h > next.h) {
+        swingHighs.push({ price: curr.h, index: i })
+      }
+      // Swing low: lower than both neighbors
+      if (curr.l < prev.l && curr.l < next.l) {
+        swingLowsAll.push({ price: curr.l, index: i })
+      }
+    }
+
+    // Count higher highs and higher lows (bullish structure)
+    let higherHighs = 0
+    let higherLows = 0
+    let lowerHighs = 0
+    let lowerLows = 0
+
+    for (let i = 1; i < swingHighs.length; i++) {
+      if (swingHighs[i].price > swingHighs[i - 1].price) {
+        higherHighs++
+      } else {
+        lowerHighs++
+      }
+    }
+
+    for (let i = 1; i < swingLowsAll.length; i++) {
+      if (swingLowsAll[i].price > swingLowsAll[i - 1].price) {
+        higherLows++
+      } else {
+        lowerLows++
+      }
+    }
+
+    // Calculate momentum consistency (how steady is the trend)
+    // High consistency = price moves in one direction with few reversals
+    const totalSwings = swingHighs.length + swingLowsAll.length
+    const bullishSwings = higherHighs + higherLows
+    const bearishSwings = lowerHighs + lowerLows
+
+    let momentumConsistency = 0
+    if (totalSwings > 2) {
+      // Consistency is how one-sided the swings are
+      const dominantSwings = Math.max(bullishSwings, bearishSwings)
+      momentumConsistency = Math.min(100, (dominantSwings / (totalSwings / 2)) * 50)
+    }
+
+    // Calculate momentum direction and score
+    let momentumDirection: 'up' | 'down' | 'neutral' = 'neutral'
+    let momentumScore = 0
+
+    // Use 24h price change as base momentum indicator
+    if (priceChangePercent24h > 5) {
+      momentumDirection = 'up'
+      momentumScore = Math.min(100, priceChangePercent24h * 2)
+    } else if (priceChangePercent24h < -5) {
+      momentumDirection = 'down'
+      momentumScore = Math.min(100, Math.abs(priceChangePercent24h) * 2)
+    }
+
+    // Boost score for consistent structure
+    if (momentumDirection === 'up' && higherLows >= 2 && higherHighs >= 1) {
+      momentumScore = Math.min(100, momentumScore + 20)
+    }
+    if (momentumDirection === 'down' && lowerHighs >= 2 && lowerLows >= 1) {
+      momentumScore = Math.min(100, momentumScore + 20)
+    }
+
+    // Factor in consistency
+    momentumScore = Math.min(100, (momentumScore + momentumConsistency) / 2 + (momentumScore > 50 ? 20 : 0))
+
+    // Determine momentum signal
+    let momentumSignal: 'strong_momentum' | 'building' | 'fading' | 'none' = 'none'
+    let momentumReason = ''
+    let isMomentumPlay = false
+
+    // Check for strong upward momentum (good for immediate buy)
+    if (momentumDirection === 'up' && priceChangePercent24h >= 10 && higherLows >= 2) {
+      momentumSignal = 'strong_momentum'
+      momentumReason = `Strong uptrend: +${priceChangePercent24h.toFixed(1)}% with ${higherLows} higher lows - momentum entry viable`
+      isMomentumPlay = true
+    } else if (momentumDirection === 'up' && priceChangePercent24h >= 5 && momentumConsistency >= 50) {
+      momentumSignal = 'building'
+      momentumReason = `Building momentum: +${priceChangePercent24h.toFixed(1)}% with consistent upward structure`
+      isMomentumPlay = volatility < 5  // Only momentum play if low volatility (steady climb)
+    } else if (momentumDirection === 'up' && priceChangePercent24h >= 5 && momentumConsistency < 30) {
+      momentumSignal = 'fading'
+      momentumReason = `Momentum may be fading: +${priceChangePercent24h.toFixed(1)}% but inconsistent structure`
+    } else if (momentumDirection === 'up') {
+      momentumReason = `Mild upward movement: +${priceChangePercent24h.toFixed(1)}%`
+    } else if (momentumDirection === 'down') {
+      momentumReason = `Downward momentum: ${priceChangePercent24h.toFixed(1)}% - not ideal for entry`
+    } else {
+      momentumReason = `No clear momentum direction`
+    }
+
+    const momentum = {
+      score: Math.round(momentumScore),
+      direction: momentumDirection,
+      consistency: Math.round(momentumConsistency),
+      higherLows,
+      higherHighs,
+      isMomentumPlay,
+      momentumSignal,
+      momentumReason,
+    }
+
     // Find support and resistance levels
     // Simple approach: look at recent lows and highs
     const recentLows = lows.slice(-16)
@@ -204,7 +334,12 @@ export class BirdeyeClient {
     } else if (volatility > 20) {
       scalpingScore -= 10  // Too volatile
     } else {
-      scalpingScore -= 20  // Too stable, not enough movement
+      // Low volatility - but check if it's a momentum play
+      if (momentum.isMomentumPlay) {
+        scalpingScore += 15  // Low volatility + momentum = steady climb, good!
+      } else {
+        scalpingScore -= 10  // Low volatility without momentum = stagnant
+      }
     }
 
     // Good volume is important
@@ -219,6 +354,13 @@ export class BirdeyeClient {
     // Clear trend is helpful
     if (trendStrength > 50) {
       scalpingScore += 15
+    }
+
+    // Momentum bonus
+    if (momentum.isMomentumPlay) {
+      scalpingScore += 15
+    } else if (momentum.momentumSignal === 'building') {
+      scalpingScore += 10
     }
 
     // Good risk/reward ratio (TP > SL)
@@ -238,14 +380,18 @@ export class BirdeyeClient {
 
     if (scalpingScore >= 70) {
       scalpingVerdict = 'good'
-      scalpingReason = `Good volatility (${volatility.toFixed(1)}%), ${trend} trend, favorable risk/reward ratio of ${riskRewardRatio.toFixed(1)}:1`
+      if (momentum.isMomentumPlay) {
+        scalpingReason = `Strong momentum play: +${priceChangePercent24h.toFixed(1)}% with consistent uptrend. ${trend} trend, R/R: ${riskRewardRatio.toFixed(1)}:1`
+      } else {
+        scalpingReason = `Good volatility (${volatility.toFixed(1)}%), ${trend} trend, favorable risk/reward ratio of ${riskRewardRatio.toFixed(1)}:1`
+      }
     } else if (scalpingScore >= 40) {
       scalpingVerdict = 'moderate'
       scalpingReason = `Moderate conditions. Volatility: ${volatility.toFixed(1)}%, Trend: ${trend}, R/R: ${riskRewardRatio.toFixed(1)}:1`
     } else {
       scalpingVerdict = 'poor'
-      if (volatility < 2) {
-        scalpingReason = `Low volatility (${volatility.toFixed(1)}%) - not enough price movement for scalping`
+      if (volatility < 2 && !momentum.isMomentumPlay) {
+        scalpingReason = `Low volatility (${volatility.toFixed(1)}%) without momentum - not enough price movement`
       } else if (volatility > 20) {
         scalpingReason = `Very high volatility (${volatility.toFixed(1)}%) - high risk of sudden losses`
       } else if (avgVolume < 1000) {
@@ -296,7 +442,7 @@ export class BirdeyeClient {
     const currentVsOptimalPercent = ((currentPrice - optimalEntryPrice) / optimalEntryPrice) * 100
 
     // Determine entry signal
-    let entrySignal: 'strong_buy' | 'buy' | 'wait' | 'avoid'
+    let entrySignal: 'strong_buy' | 'buy' | 'momentum_buy' | 'wait' | 'avoid'
     let entrySignalReason: string
 
     // Check if current price is within acceptable range of optimal
@@ -305,6 +451,14 @@ export class BirdeyeClient {
     if (scalpingVerdict === 'poor') {
       entrySignal = 'avoid'
       entrySignalReason = `Poor scalping conditions - ${scalpingReason}`
+    } else if (momentum.isMomentumPlay) {
+      // Strong momentum - buy now to catch the wave
+      entrySignal = 'momentum_buy'
+      entrySignalReason = `Momentum entry: ${momentum.momentumReason}. Buy now to catch continued upside.`
+    } else if (momentum.momentumSignal === 'building' && currentVsOptimalPercent <= acceptableRangePercent * 3) {
+      // Building momentum and price isn't too extended
+      entrySignal = 'buy'
+      entrySignalReason = `Building momentum with reasonable entry. ${momentum.momentumReason}`
     } else if (currentVsOptimalPercent <= -acceptableRangePercent) {
       // Current price is significantly below optimal (good deal)
       entrySignal = 'strong_buy'
@@ -337,6 +491,7 @@ export class BirdeyeClient {
       trend,
       trendStrength,
       avgVolume,
+      momentum,
       suggestedEntry,
       suggestedStopLoss,
       suggestedStopLossPercent,

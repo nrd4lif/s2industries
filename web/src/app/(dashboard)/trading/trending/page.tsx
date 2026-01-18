@@ -113,6 +113,7 @@ export default function TrendingPage() {
   const getSignalColor = (signal?: string) => {
     switch (signal) {
       case 'strong_buy': return 'text-green-400 bg-green-500/20'
+      case 'momentum_buy': return 'text-cyan-400 bg-cyan-500/20'
       case 'buy': return 'text-green-300 bg-green-500/10'
       case 'wait': return 'text-yellow-400 bg-yellow-500/10'
       case 'avoid': return 'text-red-400 bg-red-500/10'
@@ -289,7 +290,7 @@ export default function TrendingPage() {
 
                   {result.analysis && (
                     <div className="mt-4 pt-4 border-t border-zinc-800">
-                      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+                      <div className="grid grid-cols-2 md:grid-cols-6 gap-4">
                         {/* Entry Signal */}
                         <div>
                           <p className="text-xs text-zinc-500 mb-1">Entry Signal</p>
@@ -303,6 +304,29 @@ export default function TrendingPage() {
                           <p className={`font-medium ${getVerdictColor(result.analysis.scalpingVerdict)}`}>
                             {result.analysis.scalpingScore ?? '-'}/100
                           </p>
+                        </div>
+                        {/* Momentum */}
+                        <div>
+                          <p className="text-xs text-zinc-500 mb-1">Momentum</p>
+                          {result.analysis.momentum ? (
+                            <>
+                              <p className={`font-medium ${
+                                result.analysis.momentum.isMomentumPlay ? 'text-cyan-400' :
+                                result.analysis.momentum.direction === 'up' ? 'text-green-400' :
+                                result.analysis.momentum.direction === 'down' ? 'text-red-400' : 'text-zinc-400'
+                              }`}>
+                                {result.analysis.momentum.isMomentumPlay ? '🚀 ' : ''}
+                                {result.analysis.momentum.score}/100
+                              </p>
+                              <p className="text-xs text-zinc-500">
+                                {result.analysis.momentum.higherLows > 0 && `${result.analysis.momentum.higherLows} HL`}
+                                {result.analysis.momentum.higherLows > 0 && result.analysis.momentum.higherHighs > 0 && ' · '}
+                                {result.analysis.momentum.higherHighs > 0 && `${result.analysis.momentum.higherHighs} HH`}
+                              </p>
+                            </>
+                          ) : (
+                            <p className="text-zinc-400">-</p>
+                          )}
                         </div>
                         {/* Optimal Entry */}
                         <div>
@@ -331,8 +355,12 @@ export default function TrendingPage() {
                           </p>
                         </div>
                       </div>
+                      {/* Show momentum reason if it's a momentum play */}
+                      {result.analysis.momentum?.isMomentumPlay && (
+                        <p className="text-xs text-cyan-400 mt-2">{result.analysis.momentum.momentumReason}</p>
+                      )}
                       {result.analysis.entrySignalReason && (
-                        <p className="text-xs text-zinc-500 mt-3">{result.analysis.entrySignalReason}</p>
+                        <p className="text-xs text-zinc-500 mt-2">{result.analysis.entrySignalReason}</p>
                       )}
                     </div>
                   )}
