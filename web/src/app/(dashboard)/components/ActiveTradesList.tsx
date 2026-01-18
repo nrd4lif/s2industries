@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import Link from 'next/link'
 import { TradingPlan } from '@/types/database'
 
@@ -19,56 +19,55 @@ export default function ActiveTradesList({ initialPlans }: ActiveTradesListProps
   const [plans] = useState(initialPlans)
   const [prices, setPrices] = useState<PriceData>({})
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null)
+  const [fetching, setFetching] = useState(false)
+  const plansRef = useRef(initialPlans)
 
-  const fetchPrices = useCallback(async () => {
-    // Get unique token mints from waiting_entry plans
-    const waitingPlans = plans.filter(p => p.status === 'waiting_entry')
-    const activePlans = plans.filter(p => p.status === 'active')
-    const allPlansNeedingPrice = [...waitingPlans, ...activePlans]
+  const fetchPrices = async () => {
+    // Get unique token mints from waiting_entry and active plans
+    const waitingPlans = plansRef.current.filter(p => p.status === 'waiting_entry')
+    const activePlansFiltered = plansRef.current.filter(p => p.status === 'active')
+    const allPlansNeedingPrice = [...waitingPlans, ...activePlansFiltered]
 
     if (allPlansNeedingPrice.length === 0) return
 
     const mints = [...new Set(allPlansNeedingPrice.map(p => p.token_mint))]
 
-    // Set loading state
-    const loadingState: PriceData = {}
-    mints.forEach(mint => {
-      loadingState[mint] = { price: prices[mint]?.price || 0, loading: true }
-    })
-    setPrices(prev => ({ ...prev, ...loadingState }))
+    setFetching(true)
 
-    // Fetch prices (using Jupiter Price API via our proxy or directly)
+    // Fetch prices (using Jupiter Price API via our proxy)
     try {
       const res = await fetch(`/api/tokens/prices?mints=${mints.join(',')}`)
-      if (res.ok) {
-        const data = await res.json()
+      const data = await res.json()
+
+      if (res.ok && data.prices) {
         const newPrices: PriceData = {}
         mints.forEach(mint => {
           newPrices[mint] = {
-            price: data.prices?.[mint] || 0,
+            price: data.prices[mint] || 0,
             loading: false,
           }
         })
-        setPrices(prev => ({ ...prev, ...newPrices }))
+        setPrices(newPrices)
         setLastUpdated(new Date())
+      } else {
+        console.error('Prices API error:', data.error)
       }
     } catch (err) {
       console.error('Failed to fetch prices:', err)
-      // Clear loading state on error
-      const errorState: PriceData = {}
-      mints.forEach(mint => {
-        errorState[mint] = { price: prices[mint]?.price || 0, loading: false }
-      })
-      setPrices(prev => ({ ...prev, ...errorState }))
     }
-  }, [plans, prices])
+    setFetching(false)
+  }
+
+  useEffect(() => {
+    plansRef.current = plans
+  }, [plans])
 
   useEffect(() => {
     fetchPrices()
     // Refresh every 90 seconds
     const interval = setInterval(fetchPrices, 90000)
     return () => clearInterval(interval)
-  }, []) // Only run on mount, not on every prices change
+  }, [])
 
   if (!plans || plans.length === 0) {
     return (
@@ -98,22 +97,23 @@ export default function ActiveTradesList({ initialPlans }: ActiveTradesListProps
 
   return (
     <div className="space-y-3">
-      {lastUpdated && (
-        <p className="text-xs text-zinc-500 text-right">
-          Prices updated: {lastUpdated.toLocaleTimeString()}
-          <button
-            onClick={fetchPrices}
-            className="ml-2 text-blue-400 hover:text-blue-300"
-          >
-            Refresh
-          </button>
+      <div className="flex justify-between items-center">
+        <p className="text-xs text-zinc-500">
+          {fetching ? 'Fetching prices...' : lastUpdated ? `Updated: ${lastUpdated.toLocaleTimeString()}` : ''}
         </p>
-      )}
+        <button
+          onClick={fetchPrices}
+          disabled={fetching}
+          className="text-xs text-blue-400 hover:text-blue-300 disabled:text-zinc-500"
+        >
+          {fetching ? 'Loading...' : 'Refresh Prices'}
+        </button>
+      </div>
       {plans.map((plan: TradingPlan) => {
         const isLimitOrder = plan.status === 'waiting_entry'
         const isActive = plan.status === 'active'
         const currentPrice = prices[plan.token_mint]?.price
-        const priceLoading = prices[plan.token_mint]?.loading
+        const priceLoading = fetching && !currentPrice
 
         // Calculate distance to target for limit orders
         let distanceToTarget: number | null = null
