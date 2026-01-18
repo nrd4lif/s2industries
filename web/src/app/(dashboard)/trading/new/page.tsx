@@ -15,6 +15,8 @@ interface TokenInfo {
 export default function NewTradePage() {
   const searchParams = useSearchParams()
   const initialToken = searchParams.get('token') || ''
+  const initialSymbol = searchParams.get('symbol') || ''
+  const initialName = searchParams.get('name') || ''
   const [tokenMint, setTokenMint] = useState(initialToken)
   const [tokenInfo, setTokenInfo] = useState<TokenInfo | null>(null)
   const [analysis, setAnalysis] = useState<PriceAnalysis | null>(null)
@@ -47,6 +49,39 @@ export default function NewTradePage() {
     setAnalysis(null)
 
     try {
+      // If we have symbol/name from URL params, use them directly
+      if (initialSymbol && initialName && tokenMint === initialToken) {
+        const token: TokenInfo = {
+          mint: tokenMint,
+          symbol: initialSymbol,
+          name: initialName,
+          decimals: 9,  // Default, will be refined by analysis if available
+        }
+        setTokenInfo(token)
+
+        // Analyze token with Birdeye
+        setAnalyzing(true)
+        try {
+          const analysisRes = await fetch(`/api/tokens/analyze?address=${tokenMint}`)
+          const analysisData = await analysisRes.json()
+
+          if (analysisData.analysis) {
+            setAnalysis(analysisData.analysis)
+            setStopLoss(analysisData.analysis.suggestedStopLossPercent.toFixed(1))
+            setTakeProfit(analysisData.analysis.suggestedTakeProfitPercent.toFixed(1))
+            setTargetEntryPrice(analysisData.analysis.optimalEntryPrice.toFixed(10))
+            if (analysisData.analysis.entrySignal === 'wait') {
+              setUseLimitBuy(true)
+            }
+          }
+        } catch (err) {
+          console.error('Analysis failed:', err)
+        }
+        setAnalyzing(false)
+        setLoading(false)
+        return
+      }
+
       // Search for token
       const searchRes = await fetch(`/api/tokens/search?query=${encodeURIComponent(tokenMint)}`)
       const searchData = await searchRes.json()
@@ -100,6 +135,8 @@ export default function NewTradePage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           token_mint: tokenInfo.mint,
+          token_symbol: tokenInfo.symbol,
+          token_name: tokenInfo.name,
           amount_sol: parseFloat(amountSol),
           stop_loss_percent: parseFloat(stopLoss),
           take_profit_percent: parseFloat(takeProfit),

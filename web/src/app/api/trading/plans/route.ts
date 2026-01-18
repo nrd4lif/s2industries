@@ -56,9 +56,23 @@ export async function POST(request: Request) {
       taker: wallet.public_key,
     })
 
-    // Get token info
-    const tokens = await jupiter.searchToken(input.token_mint)
-    const tokenInfo = tokens.find(t => t.mint === input.token_mint)
+    // Get token info - use provided values or fall back to API lookup
+    let tokenSymbol = input.token_symbol
+    let tokenName = input.token_name
+
+    if (!tokenSymbol || !tokenName) {
+      try {
+        const tokens = await jupiter.searchToken(input.token_mint)
+        const tokenInfo = tokens.find(t => t.mint === input.token_mint || t.mint === input.token_mint.toLowerCase())
+        if (tokenInfo) {
+          tokenSymbol = tokenSymbol || tokenInfo.symbol
+          tokenName = tokenName || tokenInfo.name
+        }
+      } catch (err) {
+        console.warn('Failed to fetch token info:', err)
+        // Continue without token info - not critical
+      }
+    }
 
     // Calculate entry price per token (current market price)
     const tokensReceived = parseInt(quote.outAmount)
@@ -78,8 +92,8 @@ export async function POST(request: Request) {
       .insert({
         user_id: user.id,
         token_mint: input.token_mint,
-        token_symbol: tokenInfo?.symbol || null,
-        token_name: tokenInfo?.name || null,
+        token_symbol: tokenSymbol || null,
+        token_name: tokenName || null,
         entry_price_usd: useLimitBuy ? null : currentPriceUsd,  // Only set if market buy
         amount_sol: input.amount_sol,
         stop_loss_percent: input.stop_loss_percent,

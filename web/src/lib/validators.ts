@@ -6,6 +6,8 @@ const solanaPublicKey = z.string().min(32).max(44)
 // Trading plan creation
 export const createTradingPlanSchema = z.object({
   token_mint: solanaPublicKey,
+  token_symbol: z.string().max(20).optional(),  // Optional - pass from UI to avoid API lookup issues
+  token_name: z.string().max(100).optional(),   // Optional - pass from UI to avoid API lookup issues
   amount_sol: z.number().positive().max(1000),  // Max 1000 SOL per trade for safety
   stop_loss_percent: z.number().min(1).max(50),  // 1-50% stop loss
   take_profit_percent: z.number().min(1).max(500),  // 1-500% take profit

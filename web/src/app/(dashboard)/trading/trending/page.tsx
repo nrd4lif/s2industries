@@ -32,6 +32,16 @@ export default function TrendingPage() {
   const [error, setError] = useState<string | null>(null)
   const router = useRouter()
 
+  // Helper to build trade URL with token info
+  const getTradeUrl = (token: TrendingToken) => {
+    const params = new URLSearchParams({
+      token: token.id,
+      symbol: token.symbol,
+      name: token.name,
+    })
+    return `/trading/new?${params.toString()}`
+  }
+
   // Load cached data on mount
   useEffect(() => {
     const loadCached = async () => {
@@ -232,7 +242,7 @@ export default function TrendingPage() {
                 <div
                   key={result.token.id}
                   className="bg-zinc-900 border border-zinc-800 rounded-lg p-4 hover:border-zinc-700 transition-colors cursor-pointer"
-                  onClick={() => router.push(`/trading/new?token=${result.token.id}`)}
+                  onClick={() => router.push(getTradeUrl(result.token))}
                 >
                   <div className="flex items-start justify-between">
                     <div className="flex items-center gap-3">
@@ -348,7 +358,7 @@ export default function TrendingPage() {
                   <tr
                     key={token.id}
                     className="hover:bg-zinc-800/50 cursor-pointer transition-colors"
-                    onClick={() => router.push(`/trading/new?token=${token.id}`)}
+                    onClick={() => router.push(getTradeUrl(token))}
                   >
                     <td className="px-4 py-3 text-zinc-400">{i + 1}</td>
                     <td className="px-4 py-3">
