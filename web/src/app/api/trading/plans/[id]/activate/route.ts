@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { requireAuth } from '@/lib/auth'
 import { JupiterClient } from '@/lib/jupiter'
 import { decryptPrivateKey } from '@/lib/crypto'
+import { sendTradeEntryEmail } from '@/lib/email'
 
 interface RouteContext {
   params: Promise<{ id: string }>
@@ -108,15 +109,10 @@ export async function POST(request: Request, context: RouteContext) {
       )
     }
 
-    // Calculate actual entry price
-    // tokensReceived is in smallest units (with decimals factored in)
-    // quote.outUsdValue is the total USD value of tokens received
-    // quote.inUsdValue is the USD value of SOL spent
+    // Get the actual token market price using Jupiter Price API
+    // This returns the human-readable price (not per smallest unit)
+    const entryPriceUsd = await jupiter.getTokenPrice(plan.token_mint)
     const tokensReceived = parseInt(result.outputAmountResult || quote.outAmount)
-
-    // Entry price = USD spent / tokens received (in smallest units)
-    // This gives us price per smallest unit, which we store for consistency
-    const entryPriceUsd = quote.inUsdValue / tokensReceived
 
     console.log('Trade executed:', {
       tokensReceived,
@@ -163,6 +159,30 @@ export async function POST(request: Request, context: RouteContext) {
       price_usd: entryPriceUsd,
       tx_signature: result.signature,
     })
+
+    // Send entry notification email
+    try {
+      const stopLossPrice = entryPriceUsd * (1 - plan.stop_loss_percent / 100)
+      const takeProfitPrice = entryPriceUsd * (1 + plan.take_profit_percent / 100)
+
+      await sendTradeEntryEmail({
+        to: user.email!,
+        tokenSymbol: plan.token_symbol || 'Unknown',
+        tokenMint: plan.token_mint,
+        amountSol: plan.amount_sol,
+        tokensReceived,
+        entryPriceUsd,
+        stopLossPercent: plan.stop_loss_percent,
+        takeProfitPercent: plan.take_profit_percent,
+        stopLossPrice,
+        takeProfitPrice,
+        txSignature: result.signature,
+        isLimitOrder: false,
+      })
+    } catch (emailErr) {
+      console.error('Failed to send entry email:', emailErr)
+      // Don't fail the request if email fails
+    }
 
     return NextResponse.json({
       success: true,

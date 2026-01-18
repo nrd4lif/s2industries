@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { JupiterClient } from '@/lib/jupiter'
 import { decryptPrivateKey } from '@/lib/crypto'
-import { sendTradeExecutedEmail } from '@/lib/email'
+import { sendTradeExecutedEmail, sendTradeEntryEmail } from '@/lib/email'
 
 // Use service role for cron job (bypasses RLS)
 function createServiceClient() {
@@ -77,15 +77,8 @@ export async function GET(request: Request) {
             continue
           }
 
-          // Get current price quote
-          const quote = await jupiter.getQuote({
-            outputMint: plan.token_mint,
-            amountSol: plan.amount_sol,
-            taker: wallet.public_key,
-          })
-
-          const tokensForAmount = parseInt(quote.outAmount)
-          const currentPriceUsd = quote.outUsdValue / tokensForAmount
+          // Get current market price using Jupiter Price API
+          const currentPriceUsd = await jupiter.getTokenPrice(plan.token_mint)
 
           // Log price snapshot
           await supabase.from('price_snapshots').insert({
@@ -99,10 +92,24 @@ export async function GET(request: Request) {
           const thresholdPercent = plan.entry_threshold_percent || 1.0
           const priceDiffPercent = ((currentPriceUsd - targetPrice) / targetPrice) * 100
 
+          console.log(`Limit order check for ${plan.token_symbol || plan.token_mint}:`, {
+            currentPriceUsd,
+            targetPrice,
+            priceDiffPercent: priceDiffPercent.toFixed(2) + '%',
+            threshold: thresholdPercent + '%',
+            shouldExecute: priceDiffPercent <= thresholdPercent,
+          })
+
           // Buy if price is at or below target (within threshold)
           if (priceDiffPercent <= thresholdPercent) {
-            // Price hit! Execute buy
+            // Price hit! Get quote and execute buy
             const privateKey = decryptPrivateKey(wallet.encrypted_private_key)
+
+            const quote = await jupiter.getQuote({
+              outputMint: plan.token_mint,
+              amountSol: plan.amount_sol,
+              taker: wallet.public_key,
+            })
 
             if (!quote.transaction) {
               results.push({
@@ -129,9 +136,10 @@ export async function GET(request: Request) {
               continue
             }
 
-            // Calculate actual entry price
+            // Use the market price we already fetched for entry price
+            // This is the human-readable price (not per smallest unit)
             const tokensReceived = parseInt(result.outputAmountResult || quote.outAmount)
-            const actualEntryPrice = quote.outUsdValue / tokensReceived
+            const actualEntryPrice = currentPriceUsd
 
             // Update plan to active
             await supabase
@@ -160,6 +168,35 @@ export async function GET(request: Request) {
               price_usd: actualEntryPrice,
               tx_signature: result.signature,
             })
+
+            // Send entry notification email
+            try {
+              const { data: userData } = await supabase.auth.admin.getUserById(plan.user_id)
+              const userEmail = userData?.user?.email
+
+              if (userEmail) {
+                const stopLossPrice = actualEntryPrice * (1 - plan.stop_loss_percent / 100)
+                const takeProfitPrice = actualEntryPrice * (1 + plan.take_profit_percent / 100)
+
+                await sendTradeEntryEmail({
+                  to: userEmail,
+                  tokenSymbol: plan.token_symbol || 'Unknown',
+                  tokenMint: plan.token_mint,
+                  amountSol: plan.amount_sol,
+                  tokensReceived,
+                  entryPriceUsd: actualEntryPrice,
+                  stopLossPercent: plan.stop_loss_percent,
+                  takeProfitPercent: plan.take_profit_percent,
+                  stopLossPrice,
+                  takeProfitPrice,
+                  txSignature: result.signature,
+                  isLimitOrder: true,
+                })
+              }
+            } catch (emailErr) {
+              console.error('Failed to send limit order entry email:', emailErr)
+              // Don't fail the whole operation if email fails
+            }
 
             results.push({
               planId: plan.id,
@@ -229,15 +266,8 @@ export async function GET(request: Request) {
           continue
         }
 
-        // Get current price quote
-        const quote = await jupiter.getQuote({
-          outputMint: plan.token_mint,
-          amountSol: 0.001, // Small amount just to get price
-          taker: wallet.public_key,
-        })
-
-        const tokensForSmallAmount = parseInt(quote.outAmount)
-        const currentPriceUsd = quote.outUsdValue / tokensForSmallAmount
+        // Get current market price using Jupiter Price API
+        const currentPriceUsd = await jupiter.getTokenPrice(plan.token_mint)
 
         // Log price snapshot
         await supabase.from('price_snapshots').insert({

@@ -176,6 +176,185 @@ Token Mint: ${tokenMint}
   }
 }
 
+export interface TradeEntryEmailParams {
+  to: string
+  tokenSymbol: string
+  tokenMint: string
+  amountSol: number
+  tokensReceived: number
+  entryPriceUsd: number
+  stopLossPercent: number
+  takeProfitPercent: number
+  stopLossPrice: number
+  takeProfitPrice: number
+  txSignature: string
+  isLimitOrder?: boolean
+}
+
+export async function sendTradeEntryEmail(params: TradeEntryEmailParams) {
+  const {
+    to,
+    tokenSymbol,
+    tokenMint,
+    amountSol,
+    tokensReceived,
+    entryPriceUsd,
+    stopLossPercent,
+    takeProfitPercent,
+    stopLossPrice,
+    takeProfitPrice,
+    txSignature,
+    isLimitOrder = false,
+  } = params
+
+  const solscanUrl = `https://solscan.io/tx/${txSignature}`
+  const orderType = isLimitOrder ? 'Limit Order' : 'Market Order'
+
+  // Format token amount
+  const formattedTokens = tokensReceived >= 1_000_000_000
+    ? `${(tokensReceived / 1_000_000_000).toFixed(2)}B`
+    : tokensReceived >= 1_000_000
+    ? `${(tokensReceived / 1_000_000).toFixed(2)}M`
+    : tokensReceived >= 1_000
+    ? `${(tokensReceived / 1_000).toFixed(2)}K`
+    : tokensReceived.toFixed(2)
+
+  // Format price
+  const formatPrice = (price: number) => {
+    if (price < 0.00000001) return price.toExponential(4)
+    if (price < 0.0001) return price.toFixed(12)
+    if (price < 1) return price.toFixed(8)
+    return price.toFixed(4)
+  }
+
+  const subject = `🟢 Trade Entry: ${tokenSymbol} (${orderType})`
+
+  const html = `
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Trade Entry</title>
+      </head>
+      <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background-color: #09090b; color: #fafafa; padding: 20px; margin: 0;">
+        <div style="max-width: 500px; margin: 0 auto; background-color: #18181b; border-radius: 12px; border: 1px solid #27272a; overflow: hidden;">
+          <!-- Header -->
+          <div style="padding: 24px; border-bottom: 1px solid #27272a;">
+            <h1 style="margin: 0; font-size: 20px; font-weight: 600;">
+              Trade Entry Executed
+            </h1>
+            <p style="margin: 8px 0 0; color: #a1a1aa; font-size: 14px;">
+              ${orderType} filled for ${tokenSymbol}
+            </p>
+          </div>
+
+          <!-- Entry Banner -->
+          <div style="padding: 20px 24px; background-color: rgba(34, 197, 94, 0.1); border-bottom: 1px solid #27272a;">
+            <div style="text-align: center;">
+              <p style="margin: 0; font-size: 24px; font-weight: 700; color: #22c55e;">
+                ${formattedTokens} ${tokenSymbol}
+              </p>
+              <p style="margin: 8px 0 0; color: #a1a1aa; font-size: 14px;">
+                @ $${formatPrice(entryPriceUsd)}
+              </p>
+            </div>
+          </div>
+
+          <!-- Trade Details -->
+          <div style="padding: 24px;">
+            <table style="width: 100%; border-collapse: collapse; font-size: 14px;">
+              <tr>
+                <td style="padding: 8px 0; color: #71717a;">Token</td>
+                <td style="padding: 8px 0; text-align: right; color: #fafafa; font-weight: 500;">${tokenSymbol}</td>
+              </tr>
+              <tr>
+                <td style="padding: 8px 0; color: #71717a;">Order Type</td>
+                <td style="padding: 8px 0; text-align: right; color: ${isLimitOrder ? '#a855f7' : '#3b82f6'}; font-weight: 500;">${orderType}</td>
+              </tr>
+              <tr>
+                <td style="padding: 8px 0; color: #71717a;">Investment</td>
+                <td style="padding: 8px 0; text-align: right; color: #fafafa;">${amountSol} SOL</td>
+              </tr>
+              <tr>
+                <td style="padding: 8px 0; color: #71717a;">Entry Price</td>
+                <td style="padding: 8px 0; text-align: right; color: #fafafa;">$${formatPrice(entryPriceUsd)}</td>
+              </tr>
+              <tr style="border-top: 1px solid #27272a;">
+                <td style="padding: 12px 0 8px; color: #71717a;">Stop Loss (-${stopLossPercent}%)</td>
+                <td style="padding: 12px 0 8px; text-align: right; color: #ef4444;">$${formatPrice(stopLossPrice)}</td>
+              </tr>
+              <tr>
+                <td style="padding: 8px 0; color: #71717a;">Take Profit (+${takeProfitPercent}%)</td>
+                <td style="padding: 8px 0; text-align: right; color: #22c55e;">$${formatPrice(takeProfitPrice)}</td>
+              </tr>
+            </table>
+
+            <!-- Transaction Link -->
+            <div style="margin-top: 24px; padding-top: 16px; border-top: 1px solid #27272a;">
+              <a href="${solscanUrl}" target="_blank" style="display: block; text-align: center; padding: 12px 16px; background-color: #3b82f6; color: #ffffff; text-decoration: none; border-radius: 8px; font-weight: 500; font-size: 14px;">
+                View Transaction on Solscan
+              </a>
+            </div>
+
+            <!-- Token Mint -->
+            <p style="margin: 16px 0 0; font-size: 12px; color: #52525b; word-break: break-all;">
+              Token: ${tokenMint}
+            </p>
+          </div>
+
+          <!-- Footer -->
+          <div style="padding: 16px 24px; border-top: 1px solid #27272a; text-align: center;">
+            <p style="margin: 0; font-size: 12px; color: #52525b;">
+              S2 Trading Bot - Position now monitored for exit triggers
+            </p>
+          </div>
+        </div>
+      </body>
+    </html>
+  `
+
+  const text = `
+Trade Entry Executed: ${tokenSymbol} (${orderType})
+
+Position: ${formattedTokens} ${tokenSymbol} @ $${formatPrice(entryPriceUsd)}
+
+Details:
+- Investment: ${amountSol} SOL
+- Entry Price: $${formatPrice(entryPriceUsd)}
+- Stop Loss (-${stopLossPercent}%): $${formatPrice(stopLossPrice)}
+- Take Profit (+${takeProfitPercent}%): $${formatPrice(takeProfitPrice)}
+
+View Transaction: ${solscanUrl}
+
+Token Mint: ${tokenMint}
+
+Position is now being monitored for exit triggers.
+  `.trim()
+
+  try {
+    const resend = getResend()
+    const { data, error } = await resend.emails.send({
+      from: getFromEmail(),
+      to,
+      subject,
+      html,
+      text,
+    })
+
+    if (error) {
+      console.error('Failed to send entry email:', error)
+      return { success: false, error }
+    }
+
+    console.log('Entry email sent:', data?.id)
+    return { success: true, id: data?.id }
+  } catch (err) {
+    console.error('Email send error:', err)
+    return { success: false, error: err }
+  }
+}
+
 export interface TrendingOpportunityEmailParams {
   to: string
   opportunities: Array<{

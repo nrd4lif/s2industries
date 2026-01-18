@@ -272,7 +272,30 @@ export class JupiterClient {
   }
 
   /**
-   * Get current price of a token in USD (using SOL as intermediary)
+   * Get current market price of a token in USD using Jupiter Price API
+   * Returns the actual token price (not per smallest unit)
+   */
+  async getTokenPrice(tokenMint: string): Promise<number> {
+    const url = `https://api.jup.ag/price/v2?ids=${tokenMint}`
+    const res = await fetch(url, { headers: this.headers })
+
+    if (!res.ok) {
+      throw new Error(`Jupiter price API failed: ${res.status}`)
+    }
+
+    const data = await res.json()
+    const tokenData = data.data?.[tokenMint]
+
+    if (!tokenData?.price) {
+      throw new Error(`No price data for token ${tokenMint}`)
+    }
+
+    return parseFloat(tokenData.price)
+  }
+
+  /**
+   * Get current price of a token in USD (using quote - returns price per smallest unit)
+   * @deprecated Use getTokenPrice for human-readable prices
    */
   async getPrice(tokenMint: string, taker: string): Promise<{
     priceUsd: number
@@ -286,14 +309,7 @@ export class JupiterClient {
     })
 
     // Calculate price from the quote
-    const solValueUsd = quote.inUsdValue
-    const tokenValueUsd = quote.outUsdValue
     const tokensReceived = parseInt(quote.outAmount)
-
-    // Price per token = USD value / tokens received
-    // Note: outAmount is in smallest units, need to know decimals for accurate price
-    const priceUsd = tokenValueUsd / tokensReceived  // This is per smallest unit
-    const priceSol = 1 / tokensReceived  // SOL per smallest unit
 
     return {
       priceUsd: quote.inUsdValue,  // USD value of 1 SOL
