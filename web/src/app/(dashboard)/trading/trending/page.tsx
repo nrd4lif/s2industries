@@ -262,6 +262,18 @@ export default function TrendingPage() {
                           {result.token.isVerified && (
                             <span className="text-xs text-blue-400">✓</span>
                           )}
+                          <a
+                            href={`https://www.geckoterminal.com/solana/tokens/${result.token.id}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            onClick={(e) => e.stopPropagation()}
+                            className="text-zinc-500 hover:text-green-400 transition-colors"
+                            title="View on GeckoTerminal"
+                          >
+                            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
+                              <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/>
+                            </svg>
+                          </a>
                         </div>
                         <p className="text-sm text-zinc-400">{result.token.name}</p>
                       </div>
@@ -370,6 +382,18 @@ export default function TrendingPage() {
                           <span className="text-white">{token.symbol}</span>
                           {token.isVerified && <span className="text-blue-400 ml-1 text-xs">✓</span>}
                         </div>
+                        <a
+                          href={`https://www.geckoterminal.com/solana/tokens/${token.id}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          onClick={(e) => e.stopPropagation()}
+                          className="text-zinc-500 hover:text-green-400 transition-colors ml-1"
+                          title="View on GeckoTerminal"
+                        >
+                          <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/>
+                          </svg>
+                        </a>
                       </div>
                     </td>
                     <td className="px-4 py-3 text-right text-white">
