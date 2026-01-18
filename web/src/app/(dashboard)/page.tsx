@@ -2,6 +2,8 @@ import { createClient } from '@/lib/supabase/server'
 import { requireAuth } from '@/lib/auth'
 import Link from 'next/link'
 import { TradingPlan } from '@/types/database'
+import WalletStats from './components/WalletStats'
+import ActiveTradesList from './components/ActiveTradesList'
 
 export default async function DashboardPage() {
   const user = await requireAuth()
@@ -30,6 +32,15 @@ export default async function DashboardPage() {
     .in('status', ['completed', 'expired', 'cancelled'])
     .order('updated_at', { ascending: false })
     .limit(5)
+
+  // Calculate SOL allocation
+  const pendingSol = (activePlans || [])
+    .filter((p: TradingPlan) => p.status === 'pending' || p.status === 'waiting_entry')
+    .reduce((sum: number, p: TradingPlan) => sum + p.amount_sol, 0)
+
+  const activeSol = (activePlans || [])
+    .filter((p: TradingPlan) => p.status === 'active')
+    .reduce((sum: number, p: TradingPlan) => sum + p.amount_sol, 0)
 
   return (
     <div className="space-y-8">
@@ -60,87 +71,17 @@ export default async function DashboardPage() {
           </Link>
         </div>
       ) : (
-        <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-zinc-400">Trading Wallet</p>
-              <p className="text-white font-mono text-sm">
-                {wallet.public_key.slice(0, 8)}...{wallet.public_key.slice(-8)}
-              </p>
-            </div>
-            <Link
-              href="/settings/wallet"
-              className="text-sm text-blue-400 hover:text-blue-300"
-            >
-              Manage
-            </Link>
-          </div>
-        </div>
+        <WalletStats
+          publicKey={wallet.public_key}
+          pendingSol={pendingSol}
+          activeSol={activeSol}
+        />
       )}
 
       {/* Active Trades */}
       <div>
         <h2 className="text-lg font-semibold text-white mb-4">Active Trades</h2>
-        {!activePlans || activePlans.length === 0 ? (
-          <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-6 text-center">
-            <p className="text-zinc-400">No active trades</p>
-          </div>
-        ) : (
-          <div className="space-y-3">
-            {activePlans.map((plan: TradingPlan) => {
-              const isLimitOrder = plan.status === 'waiting_entry' || plan.target_entry_price !== null
-              const statusColors: Record<string, string> = {
-                active: 'bg-green-500/20 text-green-400',
-                pending: 'bg-yellow-500/20 text-yellow-400',
-                waiting_entry: 'bg-purple-500/20 text-purple-400',
-              }
-              const statusLabels: Record<string, string> = {
-                active: 'Active',
-                pending: 'Pending',
-                waiting_entry: 'Limit Order',
-              }
-              return (
-                <Link
-                  key={plan.id}
-                  href={`/trading/${plan.id}`}
-                  className="block bg-zinc-900 border border-zinc-800 rounded-lg p-4 hover:border-zinc-700 transition-colors"
-                >
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-white font-medium">
-                        {plan.token_symbol && plan.token_symbol !== 'Unknown'
-                          ? plan.token_symbol
-                          : plan.token_mint.slice(0, 8) + '...'}
-                      </p>
-                      {isLimitOrder ? (
-                        <p className="text-sm text-zinc-400">
-                          {plan.amount_sol} SOL @ target ${plan.target_entry_price?.toFixed(8)}
-                        </p>
-                      ) : (
-                        <p className="text-sm text-zinc-400">
-                          {plan.amount_sol} SOL @ ${plan.entry_price_usd?.toFixed(6)}
-                        </p>
-                      )}
-                    </div>
-                    <div className="text-right">
-                      <span className={`text-xs px-2 py-1 rounded ${statusColors[plan.status] || 'bg-zinc-500/20 text-zinc-400'}`}>
-                        {statusLabels[plan.status] || plan.status}
-                      </span>
-                      {isLimitOrder && plan.waiting_since && (
-                        <p className="text-xs text-zinc-500 mt-1">
-                          Waiting {Math.round((Date.now() - new Date(plan.waiting_since).getTime()) / (1000 * 60 * 60))}h / {plan.max_wait_hours}h max
-                        </p>
-                      )}
-                      <p className="text-sm text-zinc-400 mt-1">
-                        SL: -{plan.stop_loss_percent}% / TP: +{plan.take_profit_percent}%
-                      </p>
-                    </div>
-                  </div>
-                </Link>
-              )
-            })}
-          </div>
-        )}
+        <ActiveTradesList initialPlans={activePlans || []} />
       </div>
 
       {/* Recent Trades */}

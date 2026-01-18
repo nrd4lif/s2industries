@@ -11,8 +11,24 @@ export default function WalletSettingsPage() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [existingWallet, setExistingWallet] = useState<{ public_key: string; label: string } | null>(null)
+  const [balance, setBalance] = useState<number | null>(null)
+  const [balanceLoading, setBalanceLoading] = useState(false)
   const [generating, setGenerating] = useState(false)
   const router = useRouter()
+
+  const fetchBalance = async () => {
+    setBalanceLoading(true)
+    try {
+      const res = await fetch('/api/wallet/balance')
+      const data = await res.json()
+      if (data.balanceSol !== undefined) {
+        setBalance(data.balanceSol)
+      }
+    } catch {
+      // Silently fail - balance is optional
+    }
+    setBalanceLoading(false)
+  }
 
   useEffect(() => {
     // Check for existing wallet
@@ -25,6 +41,13 @@ export default function WalletSettingsPage() {
       })
       .catch(() => {})
   }, [])
+
+  // Fetch balance when wallet exists
+  useEffect(() => {
+    if (existingWallet) {
+      fetchBalance()
+    }
+  }, [existingWallet])
 
   const handleGenerate = async () => {
     setGenerating(true)
@@ -103,6 +126,38 @@ export default function WalletSettingsPage() {
               <p className="text-white font-mono text-sm break-all">
                 {existingWallet.public_key}
               </p>
+              <a
+                href={`https://solscan.io/account/${existingWallet.public_key}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-xs text-blue-400 hover:text-blue-300"
+              >
+                View on Solscan →
+              </a>
+            </div>
+            <div className="p-4 bg-zinc-800 rounded-lg">
+              <p className="text-sm text-zinc-400 mb-1">Balance</p>
+              <div className="flex items-center gap-2">
+                <p className="text-2xl font-bold text-white">
+                  {balanceLoading ? (
+                    <span className="text-zinc-500">Loading...</span>
+                  ) : balance !== null ? (
+                    `${balance.toFixed(4)} SOL`
+                  ) : (
+                    <span className="text-zinc-500">--</span>
+                  )}
+                </p>
+                <button
+                  onClick={fetchBalance}
+                  disabled={balanceLoading}
+                  className="p-1 text-zinc-400 hover:text-white transition-colors"
+                  title="Refresh balance"
+                >
+                  <svg className={`w-4 h-4 ${balanceLoading ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                  </svg>
+                </button>
+              </div>
             </div>
             <div className="pt-4 border-t border-zinc-800">
               <p className="text-sm text-zinc-400 mb-3">
