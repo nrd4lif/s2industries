@@ -1,4 +1,4 @@
-export type TradingPlanStatus = 'draft' | 'active' | 'triggered' | 'completed' | 'cancelled'
+export type TradingPlanStatus = 'pending' | 'waiting_entry' | 'active' | 'completed' | 'cancelled' | 'expired'
 export type TriggerType = 'stop_loss' | 'take_profit'
 export type TradeSide = 'buy' | 'sell'
 
@@ -18,7 +18,7 @@ export interface TradingPlan {
   token_mint: string
   token_symbol: string | null
   token_name: string | null
-  entry_price_usd: number
+  entry_price_usd: number | null
   amount_sol: number
   amount_tokens: number | null
   stop_loss_percent: number
@@ -33,6 +33,11 @@ export interface TradingPlan {
   exit_price_usd: number | null
   profit_loss_sol: number | null
   profit_loss_percent: number | null
+  // Limit buy fields
+  target_entry_price: number | null
+  entry_threshold_percent: number | null
+  waiting_since: string | null
+  max_wait_hours: number | null
   created_at: string
   updated_at: string
 }

@@ -14,20 +14,20 @@ export default async function DashboardPage() {
     .eq('user_id', user.id)
     .single()
 
-  // Get active trading plans
+  // Get active trading plans (including pending and waiting_entry)
   const { data: activePlans } = await supabase
     .from('trading_plans')
     .select('*')
     .eq('user_id', user.id)
-    .in('status', ['active', 'draft'])
+    .in('status', ['active', 'pending', 'waiting_entry'])
     .order('created_at', { ascending: false })
 
-  // Get recent completed trades
+  // Get recent completed/expired trades
   const { data: recentTrades } = await supabase
     .from('trading_plans')
     .select('*')
     .eq('user_id', user.id)
-    .eq('status', 'completed')
+    .in('status', ['completed', 'expired', 'cancelled'])
     .order('updated_at', { ascending: false })
     .limit(5)
 
@@ -87,36 +87,56 @@ export default async function DashboardPage() {
           </div>
         ) : (
           <div className="space-y-3">
-            {activePlans.map((plan: TradingPlan) => (
-              <Link
-                key={plan.id}
-                href={`/trading/${plan.id}`}
-                className="block bg-zinc-900 border border-zinc-800 rounded-lg p-4 hover:border-zinc-700 transition-colors"
-              >
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-white font-medium">
-                      {plan.token_symbol || plan.token_mint.slice(0, 8)}
-                    </p>
-                    <p className="text-sm text-zinc-400">
-                      {plan.amount_sol} SOL @ ${plan.entry_price_usd?.toFixed(6)}
-                    </p>
+            {activePlans.map((plan: TradingPlan) => {
+              const isLimitOrder = plan.status === 'waiting_entry'
+              const statusColors: Record<string, string> = {
+                active: 'bg-green-500/20 text-green-400',
+                pending: 'bg-yellow-500/20 text-yellow-400',
+                waiting_entry: 'bg-purple-500/20 text-purple-400',
+              }
+              const statusLabels: Record<string, string> = {
+                active: 'Active',
+                pending: 'Pending',
+                waiting_entry: 'Limit Order',
+              }
+              return (
+                <Link
+                  key={plan.id}
+                  href={`/trading/${plan.id}`}
+                  className="block bg-zinc-900 border border-zinc-800 rounded-lg p-4 hover:border-zinc-700 transition-colors"
+                >
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-white font-medium">
+                        {plan.token_symbol || plan.token_mint.slice(0, 8)}
+                      </p>
+                      {isLimitOrder ? (
+                        <p className="text-sm text-zinc-400">
+                          {plan.amount_sol} SOL @ target ${plan.target_entry_price?.toFixed(8)}
+                        </p>
+                      ) : (
+                        <p className="text-sm text-zinc-400">
+                          {plan.amount_sol} SOL @ ${plan.entry_price_usd?.toFixed(6)}
+                        </p>
+                      )}
+                    </div>
+                    <div className="text-right">
+                      <span className={`text-xs px-2 py-1 rounded ${statusColors[plan.status] || 'bg-zinc-500/20 text-zinc-400'}`}>
+                        {statusLabels[plan.status] || plan.status}
+                      </span>
+                      {isLimitOrder && plan.waiting_since && (
+                        <p className="text-xs text-zinc-500 mt-1">
+                          Waiting {Math.round((Date.now() - new Date(plan.waiting_since).getTime()) / (1000 * 60 * 60))}h / {plan.max_wait_hours}h max
+                        </p>
+                      )}
+                      <p className="text-sm text-zinc-400 mt-1">
+                        SL: -{plan.stop_loss_percent}% / TP: +{plan.take_profit_percent}%
+                      </p>
+                    </div>
                   </div>
-                  <div className="text-right">
-                    <span className={`text-xs px-2 py-1 rounded ${
-                      plan.status === 'active'
-                        ? 'bg-green-500/20 text-green-400'
-                        : 'bg-yellow-500/20 text-yellow-400'
-                    }`}>
-                      {plan.status}
-                    </span>
-                    <p className="text-sm text-zinc-400 mt-1">
-                      SL: -{plan.stop_loss_percent}% / TP: +{plan.take_profit_percent}%
-                    </p>
-                  </div>
-                </div>
-              </Link>
-            ))}
+                </Link>
+              )
+            })}
           </div>
         )}
       </div>
@@ -131,9 +151,10 @@ export default async function DashboardPage() {
         ) : (
           <div className="space-y-3">
             {recentTrades.map((trade: TradingPlan) => (
-              <div
+              <Link
                 key={trade.id}
-                className="bg-zinc-900 border border-zinc-800 rounded-lg p-4"
+                href={`/trading/${trade.id}`}
+                className="block bg-zinc-900 border border-zinc-800 rounded-lg p-4 hover:border-zinc-700 transition-colors"
               >
                 <div className="flex items-center justify-between">
                   <div>
@@ -141,24 +162,42 @@ export default async function DashboardPage() {
                       {trade.token_symbol || trade.token_mint.slice(0, 8)}
                     </p>
                     <p className="text-sm text-zinc-400">
-                      {trade.triggered_by === 'take_profit' ? 'Take Profit' : 'Stop Loss'}
+                      {trade.status === 'expired'
+                        ? 'Limit Order Expired'
+                        : trade.status === 'cancelled'
+                        ? 'Cancelled'
+                        : trade.triggered_by === 'take_profit'
+                        ? 'Take Profit'
+                        : 'Stop Loss'}
                     </p>
                   </div>
                   <div className="text-right">
-                    <p className={`font-medium ${
-                      (trade.profit_loss_percent || 0) >= 0
-                        ? 'text-green-400'
-                        : 'text-red-400'
-                    }`}>
-                      {(trade.profit_loss_percent || 0) >= 0 ? '+' : ''}
-                      {trade.profit_loss_percent?.toFixed(2)}%
-                    </p>
-                    <p className="text-sm text-zinc-400">
-                      {trade.profit_loss_sol?.toFixed(4)} SOL
-                    </p>
+                    {trade.status === 'completed' ? (
+                      <>
+                        <p className={`font-medium ${
+                          (trade.profit_loss_percent || 0) >= 0
+                            ? 'text-green-400'
+                            : 'text-red-400'
+                        }`}>
+                          {(trade.profit_loss_percent || 0) >= 0 ? '+' : ''}
+                          {trade.profit_loss_percent?.toFixed(2)}%
+                        </p>
+                        <p className="text-sm text-zinc-400">
+                          {trade.profit_loss_sol?.toFixed(4)} SOL
+                        </p>
+                      </>
+                    ) : (
+                      <span className={`text-xs px-2 py-1 rounded ${
+                        trade.status === 'expired'
+                          ? 'bg-orange-500/20 text-orange-400'
+                          : 'bg-zinc-500/20 text-zinc-400'
+                      }`}>
+                        {trade.status}
+                      </span>
+                    )}
                   </div>
                 </div>
-              </div>
+              </Link>
             ))}
           </div>
         )}

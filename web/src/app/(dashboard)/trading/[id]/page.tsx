@@ -39,13 +39,17 @@ export default async function TradingPlanPage({ params }: PageProps) {
           <span className={`px-3 py-1 rounded-full text-sm font-medium ${
             typedPlan.status === 'active'
               ? 'bg-green-500/20 text-green-400'
-              : typedPlan.status === 'draft'
+              : typedPlan.status === 'pending'
               ? 'bg-yellow-500/20 text-yellow-400'
+              : typedPlan.status === 'waiting_entry'
+              ? 'bg-purple-500/20 text-purple-400'
               : typedPlan.status === 'completed'
               ? 'bg-blue-500/20 text-blue-400'
+              : typedPlan.status === 'expired'
+              ? 'bg-orange-500/20 text-orange-400'
               : 'bg-zinc-500/20 text-zinc-400'
           }`}>
-            {typedPlan.status}
+            {typedPlan.status === 'waiting_entry' ? 'Limit Order' : typedPlan.status}
           </span>
         </div>
 
@@ -60,6 +64,49 @@ export default async function TradingPlanPage({ params }: PageProps) {
           </p>
         </div>
 
+        {/* Limit Order Details */}
+        {typedPlan.status === 'waiting_entry' && (
+          <div className="p-4 bg-purple-500/10 border border-purple-500/20 rounded-lg space-y-2">
+            <h3 className="text-sm font-medium text-purple-400">Limit Order Details</h3>
+            <div className="flex justify-between">
+              <span className="text-zinc-400">Target Entry Price</span>
+              <span className="text-purple-400">${typedPlan.target_entry_price?.toFixed(8)}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-zinc-400">Price Threshold</span>
+              <span className="text-white">±{typedPlan.entry_threshold_percent}%</span>
+            </div>
+            {typedPlan.waiting_since && (
+              <>
+                <div className="flex justify-between">
+                  <span className="text-zinc-400">Waiting Since</span>
+                  <span className="text-white">
+                    {new Date(typedPlan.waiting_since).toLocaleString()}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-zinc-400">Time Remaining</span>
+                  <span className="text-white">
+                    {Math.max(0, Math.round(
+                      ((typedPlan.max_wait_hours || 24) * 60 * 60 * 1000 -
+                        (Date.now() - new Date(typedPlan.waiting_since).getTime())) / (1000 * 60 * 60)
+                    ))}h of {typedPlan.max_wait_hours}h
+                  </span>
+                </div>
+              </>
+            )}
+          </div>
+        )}
+
+        {/* Expired Notice */}
+        {typedPlan.status === 'expired' && (
+          <div className="p-4 bg-orange-500/10 border border-orange-500/20 rounded-lg">
+            <p className="text-orange-400 text-sm">
+              This limit order expired after waiting {typedPlan.max_wait_hours} hours without the target price being reached.
+            </p>
+          </div>
+        )}
+
         {/* Trade Details */}
         <div className="space-y-3">
           <div className="flex justify-between">
@@ -67,8 +114,12 @@ export default async function TradingPlanPage({ params }: PageProps) {
             <span className="text-white">{typedPlan.amount_sol} SOL</span>
           </div>
           <div className="flex justify-between">
-            <span className="text-zinc-400">Entry Price</span>
-            <span className="text-white">${typedPlan.entry_price_usd?.toFixed(8)}</span>
+            <span className="text-zinc-400">
+              {typedPlan.status === 'waiting_entry' ? 'Target Entry Price' : 'Entry Price'}
+            </span>
+            <span className="text-white">
+              ${(typedPlan.entry_price_usd || typedPlan.target_entry_price)?.toFixed(8)}
+            </span>
           </div>
           <div className="flex justify-between">
             <span className="text-zinc-400">Stop Loss ({typedPlan.stop_loss_percent}%)</span>
