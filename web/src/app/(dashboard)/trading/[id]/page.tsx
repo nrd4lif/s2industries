@@ -27,9 +27,13 @@ function formatPrice(price: number | null | undefined): string {
   return `$${price.toFixed(4)}`
 }
 
-// Format large token amounts
-function formatTokenAmount(amount: number | null | undefined): string {
-  if (amount === null || amount === undefined) return '-'
+// Format token amounts with proper decimals
+function formatTokenAmount(rawAmount: number | null | undefined, decimals: number = 9): string {
+  if (rawAmount === null || rawAmount === undefined) return '-'
+
+  // Convert from smallest units to human-readable
+  const amount = rawAmount / Math.pow(10, decimals)
+
   if (amount >= 1_000_000_000) {
     return `${(amount / 1_000_000_000).toFixed(2)}B`
   }
@@ -39,7 +43,10 @@ function formatTokenAmount(amount: number | null | undefined): string {
   if (amount >= 1_000) {
     return `${(amount / 1_000).toFixed(2)}K`
   }
-  return amount.toFixed(2)
+  if (amount >= 1) {
+    return amount.toFixed(2)
+  }
+  return amount.toFixed(6)
 }
 
 export default async function TradingPlanPage({ params }: PageProps) {
@@ -186,7 +193,7 @@ export default async function TradingPlanPage({ params }: PageProps) {
             <h3 className="text-sm font-medium text-green-400">Position</h3>
             <div className="flex justify-between">
               <span className="text-zinc-400">Tokens Held</span>
-              <span className="text-white font-mono">{formatTokenAmount(typedPlan.amount_tokens)}</span>
+              <span className="text-white font-mono">{formatTokenAmount(typedPlan.amount_tokens, typedPlan.token_decimals || 9)}</span>
             </div>
             <div className="flex justify-between">
               <span className="text-zinc-400">Entry Value</span>

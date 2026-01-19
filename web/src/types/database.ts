@@ -18,6 +18,7 @@ export interface TradingPlan {
   token_mint: string
   token_symbol: string | null
   token_name: string | null
+  token_decimals: number | null
   entry_price_usd: number | null
   amount_sol: number
   amount_tokens: number | null
@@ -38,6 +39,24 @@ export interface TradingPlan {
   entry_threshold_percent: number | null
   waiting_since: string | null
   max_wait_hours: number | null
+  // Advanced trading features
+  use_trailing_stop: boolean | null
+  trailing_stop_percent: number | null
+  highest_price_since_entry: number | null
+  trailing_stop_price: number | null
+  use_partial_profit: boolean | null
+  partial_profit_percent: number | null
+  partial_profit_price: number | null
+  partial_profit_taken: boolean | null
+  partial_profit_taken_at: string | null
+  partial_tx_signature: string | null
+  remaining_tokens: number | null
+  use_breakeven_stop: boolean | null
+  breakeven_trigger_percent: number | null
+  breakeven_activated: boolean | null
+  breakeven_activated_at: string | null
+  max_hold_hours: number | null
+  time_exit_triggered: boolean | null
   created_at: string
   updated_at: string
 }

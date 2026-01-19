@@ -8,6 +8,7 @@ export const createTradingPlanSchema = z.object({
   token_mint: solanaPublicKey,
   token_symbol: z.string().max(20).optional(),  // Optional - pass from UI to avoid API lookup issues
   token_name: z.string().max(100).optional(),   // Optional - pass from UI to avoid API lookup issues
+  token_decimals: z.number().min(0).max(18).optional().default(9),  // Token decimals (usually 6 or 9)
   amount_sol: z.number().positive().max(1000),  // Max 1000 SOL per trade for safety
   stop_loss_percent: z.number().min(1).max(90),  // 1-90% stop loss (high for volatile meme coins)
   take_profit_percent: z.number().min(1).max(500),  // 1-500% take profit

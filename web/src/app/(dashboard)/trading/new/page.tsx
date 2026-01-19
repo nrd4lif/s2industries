@@ -163,6 +163,7 @@ export default function NewTradePage() {
           token_mint: tokenInfo.mint,
           token_symbol: tokenInfo.symbol,
           token_name: tokenInfo.name,
+          token_decimals: tokenInfo.decimals,
           amount_sol: parseFloat(amountSol),
           stop_loss_percent: parseFloat(stopLoss),
           take_profit_percent: parseFloat(takeProfit),

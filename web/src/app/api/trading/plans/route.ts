@@ -59,6 +59,7 @@ export async function POST(request: Request) {
     // Get token info - use provided values or fall back to API lookup
     let tokenSymbol = input.token_symbol
     let tokenName = input.token_name
+    let tokenDecimals = input.token_decimals || 9
 
     if (!tokenSymbol || !tokenName) {
       try {
@@ -67,6 +68,7 @@ export async function POST(request: Request) {
         if (tokenInfo) {
           tokenSymbol = tokenSymbol || tokenInfo.symbol
           tokenName = tokenName || tokenInfo.name
+          tokenDecimals = tokenInfo.decimals
         }
       } catch (err) {
         console.warn('Failed to fetch token info:', err)
@@ -94,6 +96,7 @@ export async function POST(request: Request) {
         token_mint: input.token_mint,
         token_symbol: tokenSymbol || null,
         token_name: tokenName || null,
+        token_decimals: tokenDecimals,
         entry_price_usd: useLimitBuy ? null : currentPriceUsd,  // Only set if market buy
         amount_sol: input.amount_sol,
         stop_loss_percent: input.stop_loss_percent,
