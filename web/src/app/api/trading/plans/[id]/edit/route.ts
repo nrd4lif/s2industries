@@ -5,11 +5,17 @@ import { z } from 'zod'
 
 const editPlanSchema = z.object({
   amount_sol: z.number().positive().max(1000).optional(),
-  stop_loss_percent: z.number().min(1).max(50).optional(),
+  stop_loss_percent: z.number().min(1).max(90).optional(),
   take_profit_percent: z.number().min(1).max(500).optional(),
   target_entry_price: z.number().positive().optional(),
   entry_threshold_percent: z.number().min(0.1).max(10).optional(),
   max_wait_hours: z.number().min(1).max(168).optional(),
+  // Advanced features
+  use_trailing_stop: z.boolean().optional(),
+  trailing_stop_percent: z.number().min(1).max(90).optional(),
+  use_breakeven_stop: z.boolean().optional(),
+  breakeven_trigger_percent: z.number().min(1).max(50).optional(),
+  max_hold_hours: z.number().min(1).max(720).nullable().optional(),
 })
 
 interface RouteContext {
@@ -25,26 +31,29 @@ export async function PATCH(request: Request, context: RouteContext) {
 
     const input = editPlanSchema.parse(body)
 
-    // Get the plan (must be in pending or waiting_entry status)
+    // Get the plan - allow editing pending, waiting_entry, AND active plans
     const { data: plan, error: planError } = await supabase
       .from('trading_plans')
       .select('*')
       .eq('id', id)
       .eq('user_id', user.id)
-      .in('status', ['pending', 'waiting_entry'])
+      .in('status', ['pending', 'waiting_entry', 'active'])
       .single()
 
     if (planError || !plan) {
       return NextResponse.json(
-        { error: 'Plan not found or cannot be edited (only pending/waiting orders can be edited)' },
+        { error: 'Plan not found or cannot be edited' },
         { status: 404 }
       )
     }
 
+    const isActive = plan.status === 'active'
+
     // Build update object
     const updates: Record<string, unknown> = {}
 
-    if (input.amount_sol !== undefined) {
+    // For active plans, only allow editing exit parameters (not entry/amount)
+    if (!isActive && input.amount_sol !== undefined) {
       updates.amount_sol = input.amount_sol
     }
 
@@ -56,26 +65,62 @@ export async function PATCH(request: Request, context: RouteContext) {
       updates.take_profit_percent = input.take_profit_percent
     }
 
-    if (input.target_entry_price !== undefined) {
-      updates.target_entry_price = input.target_entry_price
+    // Only allow editing entry params for non-active plans
+    if (!isActive) {
+      if (input.target_entry_price !== undefined) {
+        updates.target_entry_price = input.target_entry_price
+      }
+      if (input.entry_threshold_percent !== undefined) {
+        updates.entry_threshold_percent = input.entry_threshold_percent
+      }
+      if (input.max_wait_hours !== undefined) {
+        updates.max_wait_hours = input.max_wait_hours
+      }
     }
 
-    if (input.entry_threshold_percent !== undefined) {
-      updates.entry_threshold_percent = input.entry_threshold_percent
+    // Advanced features can be edited on any editable plan
+    if (input.use_trailing_stop !== undefined) {
+      updates.use_trailing_stop = input.use_trailing_stop
+    }
+    if (input.trailing_stop_percent !== undefined) {
+      updates.trailing_stop_percent = input.trailing_stop_percent
+    }
+    if (input.use_breakeven_stop !== undefined) {
+      updates.use_breakeven_stop = input.use_breakeven_stop
+    }
+    if (input.breakeven_trigger_percent !== undefined) {
+      updates.breakeven_trigger_percent = input.breakeven_trigger_percent
+    }
+    if (input.max_hold_hours !== undefined) {
+      updates.max_hold_hours = input.max_hold_hours
     }
 
-    if (input.max_wait_hours !== undefined) {
-      updates.max_wait_hours = input.max_wait_hours
-    }
+    // Recalculate stop loss and take profit prices
+    const entryPrice = isActive
+      ? plan.entry_price_usd  // Use actual entry price for active trades
+      : (input.target_entry_price ?? plan.target_entry_price ?? plan.entry_price_usd)
 
-    // Recalculate stop loss and take profit prices if relevant fields changed
-    const entryPrice = input.target_entry_price ?? plan.target_entry_price ?? plan.entry_price_usd
     const stopLossPercent = input.stop_loss_percent ?? plan.stop_loss_percent
     const takeProfitPercent = input.take_profit_percent ?? plan.take_profit_percent
 
     if (entryPrice) {
-      updates.stop_loss_price = entryPrice * (1 - stopLossPercent / 100)
-      updates.take_profit_price = entryPrice * (1 + takeProfitPercent / 100)
+      if (input.stop_loss_percent !== undefined) {
+        updates.stop_loss_price = entryPrice * (1 - stopLossPercent / 100)
+      }
+      if (input.take_profit_percent !== undefined) {
+        updates.take_profit_price = entryPrice * (1 + takeProfitPercent / 100)
+      }
+    }
+
+    // Update trailing stop price if trailing stop settings changed
+    if (isActive && (input.use_trailing_stop !== undefined || input.trailing_stop_percent !== undefined)) {
+      const useTrailing = input.use_trailing_stop ?? plan.use_trailing_stop
+      const trailingPercent = input.trailing_stop_percent ?? plan.trailing_stop_percent ?? stopLossPercent
+      const highestPrice = plan.highest_price_since_entry || entryPrice
+
+      if (useTrailing && highestPrice) {
+        updates.trailing_stop_price = highestPrice * (1 - trailingPercent / 100)
+      }
     }
 
     if (Object.keys(updates).length === 0) {
@@ -101,7 +146,12 @@ export async function PATCH(request: Request, context: RouteContext) {
       )
     }
 
-    return NextResponse.json({ plan: updatedPlan })
+    return NextResponse.json({
+      plan: updatedPlan,
+      message: isActive
+        ? 'Active trade updated. New SL/TP will be used on next price check.'
+        : 'Plan updated successfully.',
+    })
   } catch (err) {
     console.error('Edit plan error:', err)
     return NextResponse.json(

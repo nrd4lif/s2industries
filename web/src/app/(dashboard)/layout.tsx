@@ -1,5 +1,6 @@
 import { requireAuth } from '@/lib/auth'
 import Link from 'next/link'
+import MobileNav from './components/MobileNav'
 
 export default async function DashboardLayout({
   children,
@@ -17,7 +18,11 @@ export default async function DashboardLayout({
             <Link href="/" className="text-xl font-bold text-white">
               S2
             </Link>
-            <nav className="flex items-center gap-4">
+            {/* Desktop Navigation */}
+            <nav className="hidden md:flex items-center gap-4">
+              <Link href="/analytics" className="text-sm text-zinc-400 hover:text-white transition-colors">
+                Analytics
+              </Link>
               <Link href="/trading/trending" className="text-sm text-zinc-400 hover:text-white transition-colors">
                 Trending
               </Link>
@@ -29,7 +34,8 @@ export default async function DashboardLayout({
               </Link>
             </nav>
           </div>
-          <div className="flex items-center gap-4">
+          {/* Desktop User Info */}
+          <div className="hidden md:flex items-center gap-4">
             <span className="text-sm text-zinc-400">{user.email}</span>
             <form action="/api/auth/signout" method="POST">
               <button
@@ -40,6 +46,8 @@ export default async function DashboardLayout({
               </button>
             </form>
           </div>
+          {/* Mobile Navigation */}
+          <MobileNav userEmail={user.email || ''} />
         </div>
       </header>
 

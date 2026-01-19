@@ -3,6 +3,7 @@ import { requireAuth } from '@/lib/auth'
 import { notFound } from 'next/navigation'
 import { TradingPlan } from '@/types/database'
 import TradingPlanActions from './TradingPlanActions'
+import ChartButton from './ChartButton'
 import Link from 'next/link'
 
 interface PageProps {
@@ -116,7 +117,11 @@ export default async function TradingPlanPage({ params }: PageProps) {
           <p className="text-xs text-zinc-500 font-mono mt-1 break-all">
             {typedPlan.token_mint}
           </p>
-          <div className="mt-2 flex gap-2">
+          <div className="mt-2 flex items-center gap-2 flex-wrap">
+            <ChartButton
+              tokenMint={typedPlan.token_mint}
+              tokenSymbol={typedPlan.token_symbol || typedPlan.token_mint.slice(0, 8)}
+            />
             <a
               href={`https://solscan.io/token/${typedPlan.token_mint}`}
               target="_blank"

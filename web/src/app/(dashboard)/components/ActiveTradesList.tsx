@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from 'react'
 import Link from 'next/link'
 import { TradingPlan } from '@/types/database'
+import PriceChart from './PriceChart'
 
 interface ActiveTradesListProps {
   initialPlans: TradingPlan[]
@@ -21,6 +22,7 @@ export default function ActiveTradesList({ initialPlans }: ActiveTradesListProps
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null)
   const [fetching, setFetching] = useState(false)
   const plansRef = useRef(initialPlans)
+  const [chartOpen, setChartOpen] = useState<{ mint: string; symbol: string } | null>(null)
 
   const fetchPrices = async () => {
     // Get unique token mints from waiting_entry and active plans
@@ -132,13 +134,12 @@ export default function ActiveTradesList({ initialPlans }: ActiveTradesListProps
         }
 
         return (
-          <Link
+          <div
             key={plan.id}
-            href={`/trading/${plan.id}`}
-            className="block bg-zinc-900 border border-zinc-800 rounded-lg p-4 hover:border-zinc-700 transition-colors"
+            className="bg-zinc-900 border border-zinc-800 rounded-lg p-4 hover:border-zinc-700 transition-colors"
           >
             <div className="flex items-center justify-between">
-              <div className="flex-1">
+              <Link href={`/trading/${plan.id}`} className="flex-1">
                 <div className="flex items-center gap-2">
                   <p className="text-white font-medium">
                     {plan.token_symbol && plan.token_symbol !== 'Unknown'
@@ -152,7 +153,25 @@ export default function ActiveTradesList({ initialPlans }: ActiveTradesListProps
                 <p className="text-sm text-zinc-400">
                   {plan.amount_sol} SOL
                 </p>
-              </div>
+              </Link>
+
+              {/* Chart button */}
+              <button
+                onClick={(e) => {
+                  e.preventDefault()
+                  e.stopPropagation()
+                  setChartOpen({
+                    mint: plan.token_mint,
+                    symbol: plan.token_symbol || plan.token_mint.slice(0, 8),
+                  })
+                }}
+                className="p-2 text-zinc-400 hover:text-blue-400 hover:bg-zinc-800 rounded transition-colors mr-2"
+                title="View price chart"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M7 12l3-3 3 3 4-4M8 21l4-4 4 4M3 4h18M4 4v16" />
+                </svg>
+              </button>
 
               {/* Price info for limit orders */}
               {isLimitOrder && (
@@ -240,9 +259,19 @@ export default function ActiveTradesList({ initialPlans }: ActiveTradesListProps
                 </div>
               )}
             </div>
-          </Link>
+          </div>
         )
       })}
+
+      {/* Chart Modal */}
+      {chartOpen && (
+        <PriceChart
+          tokenMint={chartOpen.mint}
+          tokenSymbol={chartOpen.symbol}
+          isOpen={true}
+          onClose={() => setChartOpen(null)}
+        />
+      )}
     </div>
   )
 }

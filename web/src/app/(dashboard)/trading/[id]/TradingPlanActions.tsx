@@ -127,30 +127,43 @@ export default function TradingPlanActions({ plan }: Props) {
   }
 
   const isLimitOrder = plan.target_entry_price !== null
-  const canEdit = plan.status === 'pending' || plan.status === 'waiting_entry'
+  const isActive = plan.status === 'active'
+  const canEdit = plan.status === 'pending' || plan.status === 'waiting_entry' || plan.status === 'active'
 
   // Edit mode UI
   if (editing) {
     return (
       <div className="space-y-4 pt-4 border-t border-zinc-800">
-        <h3 className="text-sm font-medium text-white">Edit Order</h3>
+        <h3 className="text-sm font-medium text-white">
+          {isActive ? 'Edit Active Trade' : 'Edit Order'}
+        </h3>
+
+        {isActive && (
+          <p className="text-xs text-zinc-500">
+            Only exit parameters can be modified on active trades.
+          </p>
+        )}
 
         {error && (
           <p className="text-red-500 text-sm">{error}</p>
         )}
 
-        <div>
-          <label className="block text-sm text-zinc-400 mb-1">Amount (SOL)</label>
-          <input
-            type="number"
-            value={editForm.amount_sol}
-            onChange={(e) => setEditForm({ ...editForm, amount_sol: e.target.value })}
-            className="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-            min="0.01"
-            step="0.01"
-          />
-        </div>
+        {/* Amount - only for non-active plans */}
+        {!isActive && (
+          <div>
+            <label className="block text-sm text-zinc-400 mb-1">Amount (SOL)</label>
+            <input
+              type="number"
+              value={editForm.amount_sol}
+              onChange={(e) => setEditForm({ ...editForm, amount_sol: e.target.value })}
+              className="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+              min="0.01"
+              step="0.01"
+            />
+          </div>
+        )}
 
+        {/* SL/TP - always editable */}
         <div className="grid grid-cols-2 gap-4">
           <div>
             <label className="block text-sm text-zinc-400 mb-1">Stop Loss (%)</label>
@@ -160,7 +173,7 @@ export default function TradingPlanActions({ plan }: Props) {
               onChange={(e) => setEditForm({ ...editForm, stop_loss_percent: e.target.value })}
               className="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
               min="1"
-              max="50"
+              max="90"
               step="0.1"
             />
           </div>
@@ -178,7 +191,8 @@ export default function TradingPlanActions({ plan }: Props) {
           </div>
         </div>
 
-        {isLimitOrder && (
+        {/* Entry params - only for non-active limit orders */}
+        {!isActive && isLimitOrder && (
           <>
             <div>
               <label className="block text-sm text-zinc-400 mb-1">Target Entry Price (USD)</label>

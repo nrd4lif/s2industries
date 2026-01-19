@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { TradingPlan } from '@/types/database'
 import WalletStats from './components/WalletStats'
 import ActiveTradesList from './components/ActiveTradesList'
+import RecentTradesList from './components/RecentTradesList'
 
 export default async function DashboardPage() {
   const user = await requireAuth()
@@ -87,66 +88,7 @@ export default async function DashboardPage() {
       {/* Recent Trades */}
       <div>
         <h2 className="text-lg font-semibold text-white mb-4">Recent Trades</h2>
-        {!recentTrades || recentTrades.length === 0 ? (
-          <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-6 text-center">
-            <p className="text-zinc-400">No completed trades yet</p>
-          </div>
-        ) : (
-          <div className="space-y-3">
-            {recentTrades.map((trade: TradingPlan) => (
-              <Link
-                key={trade.id}
-                href={`/trading/${trade.id}`}
-                className="block bg-zinc-900 border border-zinc-800 rounded-lg p-4 hover:border-zinc-700 transition-colors"
-              >
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-white font-medium">
-                      {trade.token_symbol && trade.token_symbol !== 'Unknown'
-                        ? trade.token_symbol
-                        : trade.token_mint.slice(0, 8) + '...'}
-                    </p>
-                    <p className="text-sm text-zinc-400">
-                      {trade.status === 'expired'
-                        ? 'Limit Order Expired'
-                        : trade.status === 'cancelled'
-                        ? 'Cancelled'
-                        : trade.triggered_by === 'take_profit'
-                        ? 'Take Profit'
-                        : 'Stop Loss'}
-                    </p>
-                  </div>
-                  <div className="text-right">
-                    {trade.profit_loss_percent !== null && trade.profit_loss_percent !== undefined ? (
-                      <>
-                        <p className={`font-medium ${
-                          trade.profit_loss_percent >= 0
-                            ? 'text-green-400'
-                            : 'text-red-400'
-                        }`}>
-                          {trade.profit_loss_percent >= 0 ? '+' : ''}
-                          {trade.profit_loss_percent.toFixed(2)}%
-                        </p>
-                        <p className="text-sm text-zinc-400">
-                          {(trade.profit_loss_sol || 0) >= 0 ? '+' : ''}
-                          {trade.profit_loss_sol?.toFixed(4)} SOL
-                        </p>
-                      </>
-                    ) : (
-                      <span className={`text-xs px-2 py-1 rounded ${
-                        trade.status === 'expired'
-                          ? 'bg-orange-500/20 text-orange-400'
-                          : 'bg-zinc-500/20 text-zinc-400'
-                      }`}>
-                        {trade.status}
-                      </span>
-                    )}
-                  </div>
-                </div>
-              </Link>
-            ))}
-          </div>
-        )}
+        <RecentTradesList trades={recentTrades || []} />
       </div>
     </div>
   )
