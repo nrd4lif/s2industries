@@ -127,7 +127,7 @@ export class JupiterClient {
    * Search for tokens by symbol, name, or mint address
    */
   async searchToken(query: string): Promise<JupiterTokenInfo[]> {
-    // Try the token search API
+    // Try the token search API first (direct lookup by mint address)
     const url = `https://api.jup.ag/tokens/v1/token/${encodeURIComponent(query)}`
     const res = await fetch(url, { headers: this.headers })
 
@@ -137,9 +137,9 @@ export class JupiterClient {
       if (data && data.address) {
         return [{
           mint: data.address,
-          symbol: data.symbol,
-          name: data.name,
-          decimals: data.decimals,
+          symbol: data.symbol || 'Unknown',
+          name: data.name || 'Unknown Token',
+          decimals: data.decimals || 9,
           logoURI: data.logoURI,
         }]
       }
@@ -149,21 +149,74 @@ export class JupiterClient {
     const searchUrl = `https://api.jup.ag/tokens/v1/search?query=${encodeURIComponent(query)}`
     const searchRes = await fetch(searchUrl, { headers: this.headers })
 
-    if (!searchRes.ok) {
-      // If both fail, try treating it as a mint address directly
-      if (query.length >= 32 && query.length <= 44) {
-        return [{
-          mint: query,
-          symbol: 'Unknown',
-          name: 'Unknown Token',
-          decimals: 9,
-        }]
+    if (searchRes.ok) {
+      const searchData = await searchRes.json()
+      // Search returns an array directly
+      if (Array.isArray(searchData) && searchData.length > 0) {
+        return searchData.map((t: { address?: string; mint?: string; symbol?: string; name?: string; decimals?: number; logoURI?: string }) => ({
+          mint: t.address || t.mint || query,
+          symbol: t.symbol || 'Unknown',
+          name: t.name || 'Unknown Token',
+          decimals: t.decimals || 9,
+          logoURI: t.logoURI,
+        }))
       }
-      throw new Error(`Jupiter search failed: ${searchRes.status}`)
     }
 
-    const data = await searchRes.json() as JupiterTokenInfo[]
-    return data
+    // Try the strict token list as another fallback (for verified tokens)
+    const strictUrl = `https://tokens.jup.ag/token/${query}`
+    const strictRes = await fetch(strictUrl)
+
+    if (strictRes.ok) {
+      const strictData = await strictRes.json()
+      if (strictData && (strictData.address || strictData.mint)) {
+        return [{
+          mint: strictData.address || strictData.mint,
+          symbol: strictData.symbol || 'Unknown',
+          name: strictData.name || 'Unknown Token',
+          decimals: strictData.decimals || 9,
+          logoURI: strictData.logoURI,
+        }]
+      }
+    }
+
+    // Try DexScreener as fallback for newer tokens
+    if (query.length >= 32 && query.length <= 44) {
+      try {
+        const dexRes = await fetch(`https://api.dexscreener.com/latest/dex/tokens/${query}`)
+        if (dexRes.ok) {
+          const dexData = await dexRes.json()
+          if (dexData.pairs && dexData.pairs.length > 0) {
+            // Find the Solana pair
+            const solanaPair = dexData.pairs.find((p: { chainId: string }) => p.chainId === 'solana')
+            if (solanaPair && solanaPair.baseToken) {
+              return [{
+                mint: solanaPair.baseToken.address || query,
+                symbol: solanaPair.baseToken.symbol || 'Unknown',
+                name: solanaPair.baseToken.name || 'Unknown Token',
+                decimals: 9, // DexScreener doesn't always provide decimals
+                logoURI: undefined,
+              }]
+            }
+          }
+        }
+      } catch (dexErr) {
+        console.warn('DexScreener fallback failed:', dexErr)
+      }
+    }
+
+    // Final fallback: if it looks like a mint address, return with Unknown
+    if (query.length >= 32 && query.length <= 44) {
+      console.warn(`Token ${query} not found in any source, using as-is`)
+      return [{
+        mint: query,
+        symbol: 'Unknown',
+        name: 'Unknown Token',
+        decimals: 9,
+      }]
+    }
+
+    throw new Error(`Token not found: ${query}`)
   }
 
   /**
