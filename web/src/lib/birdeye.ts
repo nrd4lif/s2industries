@@ -46,11 +46,23 @@ export interface StochasticData {
   crossover: 'bullish' | 'bearish' | 'none'  // %K crossing %D
 }
 
+export interface MACDData {
+  macdLine: number        // MACD line (12 EMA - 26 EMA)
+  signalLine: number      // Signal line (9 EMA of MACD)
+  histogram: number       // MACD - Signal
+  histogramTrend: 'growing' | 'shrinking' | 'flat'  // Is momentum increasing or decreasing
+  crossover: 'bullish' | 'bearish' | 'none'  // MACD crossing signal line
+  zeroLineCross: 'bullish' | 'bearish' | 'none'  // MACD crossing zero
+  trend: 'bullish' | 'bearish' | 'neutral'  // Overall MACD trend assessment
+  momentum: 'strengthening' | 'weakening' | 'stable'  // Momentum direction
+}
+
 export interface TechnicalIndicators {
   rsi: RSIData
   ema: EMAData
   bollingerBands: BollingerBands
   stochastic: StochasticData
+  macd: MACDData
   confluenceScore: number  // 0-100, how many indicators agree
   confluenceSignal: 'strong_buy' | 'buy' | 'neutral' | 'sell' | 'strong_sell'
 }
@@ -404,13 +416,159 @@ function calculateStochastic(
 }
 
 /**
+ * Calculate MACD (Moving Average Convergence Divergence)
+ * @param closes Array of closing prices
+ * @param fastPeriod Fast EMA period (default 12)
+ * @param slowPeriod Slow EMA period (default 26)
+ * @param signalPeriod Signal line period (default 9)
+ */
+function calculateMACD(
+  closes: number[],
+  fastPeriod: number = 12,
+  slowPeriod: number = 26,
+  signalPeriod: number = 9
+): MACDData {
+  // Need enough data for slow EMA + signal period
+  if (closes.length < slowPeriod + signalPeriod) {
+    return {
+      macdLine: 0,
+      signalLine: 0,
+      histogram: 0,
+      histogramTrend: 'flat',
+      crossover: 'none',
+      zeroLineCross: 'none',
+      trend: 'neutral',
+      momentum: 'stable',
+    }
+  }
+
+  // Calculate fast and slow EMAs
+  const fastEMA = calculateEMA(closes, fastPeriod)
+  const slowEMA = calculateEMA(closes, slowPeriod)
+
+  // MACD line = Fast EMA - Slow EMA
+  // We need to align the arrays (slow EMA starts later)
+  const offset = slowPeriod - fastPeriod
+  const macdValues: number[] = []
+  for (let i = 0; i < slowEMA.length; i++) {
+    macdValues.push(fastEMA[i + offset] - slowEMA[i])
+  }
+
+  if (macdValues.length < signalPeriod) {
+    return {
+      macdLine: 0,
+      signalLine: 0,
+      histogram: 0,
+      histogramTrend: 'flat',
+      crossover: 'none',
+      zeroLineCross: 'none',
+      trend: 'neutral',
+      momentum: 'stable',
+    }
+  }
+
+  // Signal line = 9 EMA of MACD
+  const signalValues = calculateEMA(macdValues, signalPeriod)
+
+  // Get current and previous values
+  const macdLine = macdValues[macdValues.length - 1]
+  const signalLine = signalValues[signalValues.length - 1]
+  const histogram = macdLine - signalLine
+
+  const prevMacdLine = macdValues[macdValues.length - 2]
+  const prevSignalLine = signalValues[signalValues.length - 2]
+  const prevHistogram = prevMacdLine - prevSignalLine
+
+  // Check even earlier for trend analysis
+  const prevPrevHistogram = macdValues.length >= 3 && signalValues.length >= 3
+    ? macdValues[macdValues.length - 3] - signalValues[signalValues.length - 3]
+    : prevHistogram
+
+  // Determine histogram trend (momentum acceleration/deceleration)
+  let histogramTrend: 'growing' | 'shrinking' | 'flat' = 'flat'
+  const histogramChange = Math.abs(histogram) - Math.abs(prevHistogram)
+  const histogramDirection = histogram > 0 ? 1 : -1
+  const prevDirection = prevHistogram > 0 ? 1 : -1
+
+  if (histogramDirection === prevDirection) {
+    // Same side of zero
+    if (Math.abs(histogram) > Math.abs(prevHistogram) * 1.05) {
+      histogramTrend = 'growing'  // Momentum increasing
+    } else if (Math.abs(histogram) < Math.abs(prevHistogram) * 0.95) {
+      histogramTrend = 'shrinking'  // Momentum decreasing
+    }
+  } else {
+    // Crossed zero - significant change
+    histogramTrend = 'growing'
+  }
+
+  // Check for MACD/Signal crossover
+  let crossover: 'bullish' | 'bearish' | 'none' = 'none'
+  if (prevMacdLine <= prevSignalLine && macdLine > signalLine) {
+    crossover = 'bullish'  // MACD crossed above signal
+  } else if (prevMacdLine >= prevSignalLine && macdLine < signalLine) {
+    crossover = 'bearish'  // MACD crossed below signal
+  }
+
+  // Check for zero line cross
+  let zeroLineCross: 'bullish' | 'bearish' | 'none' = 'none'
+  if (prevMacdLine <= 0 && macdLine > 0) {
+    zeroLineCross = 'bullish'  // Crossed above zero
+  } else if (prevMacdLine >= 0 && macdLine < 0) {
+    zeroLineCross = 'bearish'  // Crossed below zero
+  }
+
+  // Determine overall trend
+  let trend: 'bullish' | 'bearish' | 'neutral' = 'neutral'
+  if (macdLine > signalLine && macdLine > 0) {
+    trend = 'bullish'  // Strong bullish
+  } else if (macdLine > signalLine && macdLine <= 0) {
+    // Below zero but MACD above signal = potential reversal starting
+    trend = histogram > prevHistogram ? 'bullish' : 'neutral'
+  } else if (macdLine < signalLine && macdLine < 0) {
+    trend = 'bearish'  // Strong bearish
+  } else if (macdLine < signalLine && macdLine >= 0) {
+    // Above zero but MACD below signal = potential top forming
+    trend = histogram < prevHistogram ? 'bearish' : 'neutral'
+  }
+
+  // Determine momentum state
+  let momentum: 'strengthening' | 'weakening' | 'stable' = 'stable'
+  if (trend === 'bullish' || (macdLine > prevMacdLine && histogram > prevHistogram)) {
+    if (histogramTrend === 'growing') {
+      momentum = 'strengthening'
+    } else if (histogramTrend === 'shrinking') {
+      momentum = 'weakening'
+    }
+  } else if (trend === 'bearish' || (macdLine < prevMacdLine && histogram < prevHistogram)) {
+    if (histogramTrend === 'growing') {
+      momentum = 'strengthening'  // Bearish momentum strengthening (getting worse)
+    } else if (histogramTrend === 'shrinking') {
+      momentum = 'weakening'  // Bearish momentum weakening (potential reversal)
+    }
+  }
+
+  return {
+    macdLine: Math.round(macdLine * 1e10) / 1e10,  // Handle very small numbers
+    signalLine: Math.round(signalLine * 1e10) / 1e10,
+    histogram: Math.round(histogram * 1e10) / 1e10,
+    histogramTrend,
+    crossover,
+    zeroLineCross,
+    trend,
+    momentum,
+  }
+}
+
+/**
  * Calculate confluence of all indicators
  */
 function calculateConfluence(
   rsi: RSIData,
   ema: EMAData,
   bb: BollingerBands,
-  stoch: StochasticData
+  stoch: StochasticData,
+  macd: MACDData
 ): { score: number; signal: 'strong_buy' | 'buy' | 'neutral' | 'sell' | 'strong_sell' } {
   let bullishSignals = 0
   let bearishSignals = 0
@@ -439,8 +597,19 @@ function calculateConfluence(
   if (stoch.crossover === 'bullish') bullishSignals += 2
   else if (stoch.crossover === 'bearish') bearishSignals += 2
 
-  const totalSignals = bullishSignals + bearishSignals
-  const maxPossible = 16  // Maximum possible signals
+  // MACD signals (weighted heavily as it's a key momentum indicator)
+  if (macd.crossover === 'bullish') bullishSignals += 3
+  else if (macd.crossover === 'bearish') bearishSignals += 3
+  if (macd.zeroLineCross === 'bullish') bullishSignals += 2
+  else if (macd.zeroLineCross === 'bearish') bearishSignals += 2
+  if (macd.trend === 'bullish') bullishSignals += 1
+  else if (macd.trend === 'bearish') bearishSignals += 1
+  // Momentum change is important - weakening bearish = potential reversal
+  if (macd.trend === 'bearish' && macd.momentum === 'weakening') bullishSignals += 1
+  else if (macd.trend === 'bullish' && macd.momentum === 'weakening') bearishSignals += 1
+  if (macd.histogramTrend === 'shrinking' && macd.histogram < 0) bullishSignals += 1  // Bearish momentum fading
+
+  const maxPossible = 24  // Maximum possible signals (increased for MACD)
 
   // Calculate score (0-100)
   let score = 50  // Neutral
@@ -453,10 +622,10 @@ function calculateConfluence(
 
   // Determine signal
   let signal: 'strong_buy' | 'buy' | 'neutral' | 'sell' | 'strong_sell' = 'neutral'
-  if (bullishSignals >= 6 && bearishSignals <= 1) signal = 'strong_buy'
-  else if (bullishSignals >= 4 && bullishSignals > bearishSignals * 2) signal = 'buy'
-  else if (bearishSignals >= 6 && bullishSignals <= 1) signal = 'strong_sell'
-  else if (bearishSignals >= 4 && bearishSignals > bullishSignals * 2) signal = 'sell'
+  if (bullishSignals >= 8 && bearishSignals <= 2) signal = 'strong_buy'
+  else if (bullishSignals >= 5 && bullishSignals > bearishSignals * 2) signal = 'buy'
+  else if (bearishSignals >= 8 && bullishSignals <= 2) signal = 'strong_sell'
+  else if (bearishSignals >= 5 && bearishSignals > bullishSignals * 2) signal = 'sell'
 
   return { score, signal }
 }
@@ -881,15 +1050,17 @@ export class BirdeyeClient {
     const ema = calculateEMASignals(closes)
     const bollingerBands = calculateBollingerBands(closes, 20, 2)
     const stochastic = calculateStochastic(highs, lows, closes, 5, 3)
+    const macd = calculateMACD(closes, 12, 26, 9)
 
     // Calculate confluence score
-    const confluence = calculateConfluence(rsi, ema, bollingerBands, stochastic)
+    const confluence = calculateConfluence(rsi, ema, bollingerBands, stochastic, macd)
 
     const indicators: TechnicalIndicators = {
       rsi,
       ema,
       bollingerBands,
       stochastic,
+      macd,
       confluenceScore: confluence.score,
       confluenceSignal: confluence.signal,
     }

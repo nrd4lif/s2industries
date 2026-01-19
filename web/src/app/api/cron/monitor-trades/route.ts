@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { JupiterClient } from '@/lib/jupiter'
+import { BirdeyeClient } from '@/lib/birdeye'
 import { decryptPrivateKey } from '@/lib/crypto'
 import { sendTradeExecutedEmail, sendTradeEntryEmail } from '@/lib/email'
 
@@ -76,6 +77,7 @@ export async function GET(request: Request) {
 
   const supabase = createServiceClient()
   const jupiter = new JupiterClient(process.env.JUPITER_API_KEY || '')
+  const birdeye = new BirdeyeClient(process.env.BIRDEYE_API_KEY || '')
 
   const results: Array<{ planId: string; action: string; success: boolean; error?: string; details?: string }> = []
 
@@ -169,7 +171,85 @@ export async function GET(request: Request) {
 
           // Buy if price is at or below target (within threshold)
           if (priceDiffPercent <= thresholdPercent) {
-            // Price hit! Get quote and execute buy
+            // ========================================
+            // MOMENTUM CHECK: Don't buy if still in strong downtrend
+            // Use MACD to determine if momentum is still bearish
+            // ========================================
+            let shouldExecuteEntry = true
+            let momentumReason = ''
+
+            try {
+              const analysis = await birdeye.analyzeToken(plan.token_mint)
+              const macd = analysis.indicators.macd
+              const confluence = analysis.indicators.confluenceSignal
+
+              console.log(`MACD analysis for ${plan.token_symbol || plan.token_mint}:`, {
+                macdLine: macd.macdLine,
+                signalLine: macd.signalLine,
+                histogram: macd.histogram,
+                histogramTrend: macd.histogramTrend,
+                trend: macd.trend,
+                momentum: macd.momentum,
+                crossover: macd.crossover,
+                confluenceSignal: confluence,
+              })
+
+              // Decision logic:
+              // 1. If MACD shows bullish crossover or zero line cross - BUY (reversal confirmed)
+              // 2. If MACD bearish but momentum weakening (histogram shrinking) - BUY (catching the turn)
+              // 3. If MACD bearish with strengthening momentum - WAIT (still falling)
+              // 4. If confluence is strong_sell - WAIT
+
+              if (macd.crossover === 'bullish' || macd.zeroLineCross === 'bullish') {
+                // Bullish crossover - great entry signal!
+                shouldExecuteEntry = true
+                momentumReason = `MACD bullish crossover detected - optimal entry point`
+              } else if (macd.trend === 'bearish' && macd.momentum === 'strengthening') {
+                // Strong downtrend still accelerating - wait for reversal
+                shouldExecuteEntry = false
+                momentumReason = `MACD shows strong bearish momentum (histogram: ${macd.histogramTrend}) - waiting for reversal`
+              } else if (macd.trend === 'bearish' && macd.histogramTrend === 'shrinking') {
+                // Bearish but momentum fading - potential bottom, okay to enter
+                shouldExecuteEntry = true
+                momentumReason = `MACD bearish but momentum weakening - potential reversal starting`
+              } else if (confluence === 'strong_sell') {
+                // Multiple indicators saying sell - don't buy
+                shouldExecuteEntry = false
+                momentumReason = `Confluence signal is strong_sell - too risky to enter`
+              } else if (macd.trend === 'bearish' && macd.momentum === 'stable') {
+                // Bearish but stable - could go either way, use confluence
+                if (confluence === 'sell') {
+                  shouldExecuteEntry = false
+                  momentumReason = `MACD bearish with sell confluence - waiting`
+                } else {
+                  shouldExecuteEntry = true
+                  momentumReason = `MACD bearish but stable, confluence neutral - entering`
+                }
+              } else {
+                // Neutral or bullish - go ahead
+                shouldExecuteEntry = true
+                momentumReason = `MACD trend: ${macd.trend}, momentum: ${macd.momentum} - proceeding with entry`
+              }
+
+              console.log(`Entry decision for ${plan.token_symbol}: ${shouldExecuteEntry ? 'EXECUTE' : 'WAIT'} - ${momentumReason}`)
+
+            } catch (analysisErr) {
+              // If analysis fails, proceed with entry (don't block on analysis failure)
+              console.error(`Failed to analyze momentum for ${plan.token_mint}:`, analysisErr)
+              momentumReason = 'Momentum analysis unavailable - proceeding with price-based entry'
+            }
+
+            if (!shouldExecuteEntry) {
+              results.push({
+                planId: plan.id,
+                action: 'waiting_momentum',
+                success: true,
+                details: momentumReason,
+              })
+              continue
+            }
+
+            // Momentum is favorable - proceed with entry
             const privateKey = decryptPrivateKey(wallet.encrypted_private_key)
 
             const quote = await jupiter.getQuote({
