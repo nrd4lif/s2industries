@@ -16,6 +16,45 @@ interface OHLCVResponse {
   }
 }
 
+// Technical indicator interfaces
+export interface RSIData {
+  value: number  // 0-100
+  signal: 'overbought' | 'oversold' | 'neutral'
+  divergence: 'bullish' | 'bearish' | 'none'  // Price vs RSI divergence
+}
+
+export interface EMAData {
+  ema9: number
+  ema21: number
+  crossover: 'bullish' | 'bearish' | 'none'  // Recent crossover signal
+  priceVsEma: 'above_both' | 'between' | 'below_both'
+}
+
+export interface BollingerBands {
+  upper: number
+  middle: number  // 20-period SMA
+  lower: number
+  bandwidth: number  // (upper - lower) / middle * 100
+  percentB: number  // Where price is within bands (0 = lower, 1 = upper)
+  signal: 'overbought' | 'oversold' | 'squeeze' | 'neutral'
+}
+
+export interface StochasticData {
+  k: number  // %K line (0-100)
+  d: number  // %D line (3-period SMA of %K)
+  signal: 'overbought' | 'oversold' | 'neutral'
+  crossover: 'bullish' | 'bearish' | 'none'  // %K crossing %D
+}
+
+export interface TechnicalIndicators {
+  rsi: RSIData
+  ema: EMAData
+  bollingerBands: BollingerBands
+  stochastic: StochasticData
+  confluenceScore: number  // 0-100, how many indicators agree
+  confluenceSignal: 'strong_buy' | 'buy' | 'neutral' | 'sell' | 'strong_sell'
+}
+
 export interface PriceAnalysis {
   currentPrice: number
   high24h: number
@@ -26,6 +65,9 @@ export interface PriceAnalysis {
   trend: 'bullish' | 'bearish' | 'sideways'
   trendStrength: number  // 0-100
   avgVolume: number
+
+  // Technical indicators
+  indicators: TechnicalIndicators
 
   // Momentum indicators
   momentum: {
@@ -68,6 +110,355 @@ export interface PriceAnalysis {
 
   // Raw candle data for charting
   candles: OHLCVCandle[]
+}
+
+// ========================================
+// TECHNICAL INDICATOR CALCULATIONS
+// ========================================
+
+/**
+ * Calculate RSI (Relative Strength Index)
+ * @param closes Array of closing prices
+ * @param period RSI period (default 14)
+ */
+function calculateRSI(closes: number[], period: number = 14): RSIData {
+  if (closes.length < period + 1) {
+    return { value: 50, signal: 'neutral', divergence: 'none' }
+  }
+
+  // Calculate price changes
+  const changes: number[] = []
+  for (let i = 1; i < closes.length; i++) {
+    changes.push(closes[i] - closes[i - 1])
+  }
+
+  // Calculate initial average gain/loss
+  let avgGain = 0
+  let avgLoss = 0
+  for (let i = 0; i < period; i++) {
+    if (changes[i] > 0) avgGain += changes[i]
+    else avgLoss += Math.abs(changes[i])
+  }
+  avgGain /= period
+  avgLoss /= period
+
+  // Calculate smoothed RSI using Wilder's smoothing
+  for (let i = period; i < changes.length; i++) {
+    const change = changes[i]
+    if (change > 0) {
+      avgGain = (avgGain * (period - 1) + change) / period
+      avgLoss = (avgLoss * (period - 1)) / period
+    } else {
+      avgGain = (avgGain * (period - 1)) / period
+      avgLoss = (avgLoss * (period - 1) + Math.abs(change)) / period
+    }
+  }
+
+  const rs = avgLoss === 0 ? 100 : avgGain / avgLoss
+  const rsi = 100 - (100 / (1 + rs))
+
+  // Determine signal
+  let signal: 'overbought' | 'oversold' | 'neutral' = 'neutral'
+  if (rsi >= 70) signal = 'overbought'
+  else if (rsi <= 30) signal = 'oversold'
+
+  // Check for divergence (price making new high but RSI not, or vice versa)
+  let divergence: 'bullish' | 'bearish' | 'none' = 'none'
+  if (closes.length >= period * 2) {
+    const recentCloses = closes.slice(-period)
+    const olderCloses = closes.slice(-period * 2, -period)
+    const recentHigh = Math.max(...recentCloses)
+    const olderHigh = Math.max(...olderCloses)
+
+    // Calculate RSI for older period
+    const olderRSI = calculateRSIValue(closes.slice(0, -period), period)
+
+    // Bearish divergence: price higher high, RSI lower high
+    if (recentHigh > olderHigh && rsi < olderRSI) {
+      divergence = 'bearish'
+    }
+    // Bullish divergence: price lower low, RSI higher low
+    const recentLow = Math.min(...recentCloses)
+    const olderLow = Math.min(...olderCloses)
+    if (recentLow < olderLow && rsi > olderRSI) {
+      divergence = 'bullish'
+    }
+  }
+
+  return { value: Math.round(rsi * 10) / 10, signal, divergence }
+}
+
+// Helper to calculate just RSI value
+function calculateRSIValue(closes: number[], period: number): number {
+  if (closes.length < period + 1) return 50
+
+  const changes: number[] = []
+  for (let i = 1; i < closes.length; i++) {
+    changes.push(closes[i] - closes[i - 1])
+  }
+
+  let avgGain = 0
+  let avgLoss = 0
+  for (let i = 0; i < period; i++) {
+    if (changes[i] > 0) avgGain += changes[i]
+    else avgLoss += Math.abs(changes[i])
+  }
+  avgGain /= period
+  avgLoss /= period
+
+  for (let i = period; i < changes.length; i++) {
+    const change = changes[i]
+    if (change > 0) {
+      avgGain = (avgGain * (period - 1) + change) / period
+      avgLoss = (avgLoss * (period - 1)) / period
+    } else {
+      avgGain = (avgGain * (period - 1)) / period
+      avgLoss = (avgLoss * (period - 1) + Math.abs(change)) / period
+    }
+  }
+
+  const rs = avgLoss === 0 ? 100 : avgGain / avgLoss
+  return 100 - (100 / (1 + rs))
+}
+
+/**
+ * Calculate EMA (Exponential Moving Average)
+ * @param closes Array of closing prices
+ * @param period EMA period
+ */
+function calculateEMA(closes: number[], period: number): number[] {
+  if (closes.length < period) return []
+
+  const multiplier = 2 / (period + 1)
+  const emaValues: number[] = []
+
+  // Start with SMA for first EMA value
+  let sma = 0
+  for (let i = 0; i < period; i++) {
+    sma += closes[i]
+  }
+  sma /= period
+  emaValues.push(sma)
+
+  // Calculate EMA for remaining values
+  for (let i = period; i < closes.length; i++) {
+    const ema = (closes[i] - emaValues[emaValues.length - 1]) * multiplier + emaValues[emaValues.length - 1]
+    emaValues.push(ema)
+  }
+
+  return emaValues
+}
+
+/**
+ * Calculate EMA crossover signals
+ */
+function calculateEMASignals(closes: number[]): EMAData {
+  const ema9Values = calculateEMA(closes, 9)
+  const ema21Values = calculateEMA(closes, 21)
+
+  if (ema9Values.length < 2 || ema21Values.length < 2) {
+    return {
+      ema9: closes[closes.length - 1],
+      ema21: closes[closes.length - 1],
+      crossover: 'none',
+      priceVsEma: 'between'
+    }
+  }
+
+  const ema9 = ema9Values[ema9Values.length - 1]
+  const ema21 = ema21Values[ema21Values.length - 1]
+  const prevEma9 = ema9Values[ema9Values.length - 2]
+  const prevEma21 = ema21Values[ema21Values.length - 2]
+  const currentPrice = closes[closes.length - 1]
+
+  // Check for crossover in last candle
+  let crossover: 'bullish' | 'bearish' | 'none' = 'none'
+  if (prevEma9 <= prevEma21 && ema9 > ema21) {
+    crossover = 'bullish'  // 9 EMA crossed above 21 EMA
+  } else if (prevEma9 >= prevEma21 && ema9 < ema21) {
+    crossover = 'bearish'  // 9 EMA crossed below 21 EMA
+  }
+
+  // Check price position relative to EMAs
+  let priceVsEma: 'above_both' | 'between' | 'below_both' = 'between'
+  if (currentPrice > ema9 && currentPrice > ema21) {
+    priceVsEma = 'above_both'
+  } else if (currentPrice < ema9 && currentPrice < ema21) {
+    priceVsEma = 'below_both'
+  }
+
+  return { ema9, ema21, crossover, priceVsEma }
+}
+
+/**
+ * Calculate Bollinger Bands
+ * @param closes Array of closing prices
+ * @param period Period for middle band SMA (default 20)
+ * @param stdDevMultiplier Standard deviation multiplier (default 2)
+ */
+function calculateBollingerBands(closes: number[], period: number = 20, stdDevMultiplier: number = 2): BollingerBands {
+  if (closes.length < period) {
+    const price = closes[closes.length - 1]
+    return {
+      upper: price,
+      middle: price,
+      lower: price,
+      bandwidth: 0,
+      percentB: 0.5,
+      signal: 'neutral'
+    }
+  }
+
+  // Calculate middle band (SMA)
+  const recentCloses = closes.slice(-period)
+  const middle = recentCloses.reduce((a, b) => a + b, 0) / period
+
+  // Calculate standard deviation
+  const squaredDiffs = recentCloses.map(c => Math.pow(c - middle, 2))
+  const variance = squaredDiffs.reduce((a, b) => a + b, 0) / period
+  const stdDev = Math.sqrt(variance)
+
+  // Calculate bands
+  const upper = middle + (stdDev * stdDevMultiplier)
+  const lower = middle - (stdDev * stdDevMultiplier)
+  const bandwidth = ((upper - lower) / middle) * 100
+
+  // Calculate %B (where price is within bands)
+  const currentPrice = closes[closes.length - 1]
+  const percentB = (currentPrice - lower) / (upper - lower)
+
+  // Determine signal
+  let signal: 'overbought' | 'oversold' | 'squeeze' | 'neutral' = 'neutral'
+  if (percentB >= 1) {
+    signal = 'overbought'  // Price at or above upper band
+  } else if (percentB <= 0) {
+    signal = 'oversold'  // Price at or below lower band
+  } else if (bandwidth < 5) {
+    signal = 'squeeze'  // Low volatility squeeze, potential breakout
+  }
+
+  return { upper, middle, lower, bandwidth, percentB, signal }
+}
+
+/**
+ * Calculate Stochastic Oscillator
+ * @param highs Array of high prices
+ * @param lows Array of low prices
+ * @param closes Array of closing prices
+ * @param kPeriod %K period (default 5)
+ * @param dPeriod %D period (default 3)
+ */
+function calculateStochastic(
+  highs: number[],
+  lows: number[],
+  closes: number[],
+  kPeriod: number = 5,
+  dPeriod: number = 3
+): StochasticData {
+  if (closes.length < kPeriod + dPeriod) {
+    return { k: 50, d: 50, signal: 'neutral', crossover: 'none' }
+  }
+
+  // Calculate %K values
+  const kValues: number[] = []
+  for (let i = kPeriod - 1; i < closes.length; i++) {
+    const periodHighs = highs.slice(i - kPeriod + 1, i + 1)
+    const periodLows = lows.slice(i - kPeriod + 1, i + 1)
+    const highestHigh = Math.max(...periodHighs)
+    const lowestLow = Math.min(...periodLows)
+    const k = highestHigh === lowestLow ? 50 : ((closes[i] - lowestLow) / (highestHigh - lowestLow)) * 100
+    kValues.push(k)
+  }
+
+  // Calculate %D (SMA of %K)
+  const dValues: number[] = []
+  for (let i = dPeriod - 1; i < kValues.length; i++) {
+    const d = kValues.slice(i - dPeriod + 1, i + 1).reduce((a, b) => a + b, 0) / dPeriod
+    dValues.push(d)
+  }
+
+  const k = kValues[kValues.length - 1]
+  const d = dValues[dValues.length - 1]
+  const prevK = kValues[kValues.length - 2] || k
+  const prevD = dValues[dValues.length - 2] || d
+
+  // Determine signal
+  let signal: 'overbought' | 'oversold' | 'neutral' = 'neutral'
+  if (k >= 80 && d >= 80) signal = 'overbought'
+  else if (k <= 20 && d <= 20) signal = 'oversold'
+
+  // Check for crossover
+  let crossover: 'bullish' | 'bearish' | 'none' = 'none'
+  if (prevK <= prevD && k > d) {
+    crossover = 'bullish'  // %K crossed above %D
+  } else if (prevK >= prevD && k < d) {
+    crossover = 'bearish'  // %K crossed below %D
+  }
+
+  return {
+    k: Math.round(k * 10) / 10,
+    d: Math.round(d * 10) / 10,
+    signal,
+    crossover
+  }
+}
+
+/**
+ * Calculate confluence of all indicators
+ */
+function calculateConfluence(
+  rsi: RSIData,
+  ema: EMAData,
+  bb: BollingerBands,
+  stoch: StochasticData
+): { score: number; signal: 'strong_buy' | 'buy' | 'neutral' | 'sell' | 'strong_sell' } {
+  let bullishSignals = 0
+  let bearishSignals = 0
+
+  // RSI signals
+  if (rsi.signal === 'oversold') bullishSignals += 2
+  else if (rsi.signal === 'overbought') bearishSignals += 2
+  if (rsi.divergence === 'bullish') bullishSignals += 1
+  else if (rsi.divergence === 'bearish') bearishSignals += 1
+
+  // EMA signals
+  if (ema.crossover === 'bullish') bullishSignals += 2
+  else if (ema.crossover === 'bearish') bearishSignals += 2
+  if (ema.priceVsEma === 'above_both') bullishSignals += 1
+  else if (ema.priceVsEma === 'below_both') bearishSignals += 1
+
+  // Bollinger Bands signals
+  if (bb.signal === 'oversold') bullishSignals += 2
+  else if (bb.signal === 'overbought') bearishSignals += 2
+  if (bb.percentB < 0.2) bullishSignals += 1
+  else if (bb.percentB > 0.8) bearishSignals += 1
+
+  // Stochastic signals
+  if (stoch.signal === 'oversold') bullishSignals += 1
+  else if (stoch.signal === 'overbought') bearishSignals += 1
+  if (stoch.crossover === 'bullish') bullishSignals += 2
+  else if (stoch.crossover === 'bearish') bearishSignals += 2
+
+  const totalSignals = bullishSignals + bearishSignals
+  const maxPossible = 16  // Maximum possible signals
+
+  // Calculate score (0-100)
+  let score = 50  // Neutral
+  if (bullishSignals > bearishSignals) {
+    score = 50 + ((bullishSignals - bearishSignals) / maxPossible) * 50
+  } else if (bearishSignals > bullishSignals) {
+    score = 50 - ((bearishSignals - bullishSignals) / maxPossible) * 50
+  }
+  score = Math.max(0, Math.min(100, Math.round(score)))
+
+  // Determine signal
+  let signal: 'strong_buy' | 'buy' | 'neutral' | 'sell' | 'strong_sell' = 'neutral'
+  if (bullishSignals >= 6 && bearishSignals <= 1) signal = 'strong_buy'
+  else if (bullishSignals >= 4 && bullishSignals > bearishSignals * 2) signal = 'buy'
+  else if (bearishSignals >= 6 && bullishSignals <= 1) signal = 'strong_sell'
+  else if (bearishSignals >= 4 && bearishSignals > bullishSignals * 2) signal = 'sell'
+
+  return { score, signal }
 }
 
 export class BirdeyeClient {
@@ -481,6 +872,28 @@ export class BirdeyeClient {
     const expectedProfitAtCurrent = ((suggestedTakeProfit - currentPrice) / currentPrice) * 100
     const expectedProfitAtOptimal = ((suggestedTakeProfit - optimalEntryPrice) / optimalEntryPrice) * 100
 
+    // ========================================
+    // TECHNICAL INDICATORS
+    // ========================================
+
+    // Calculate all technical indicators from candle data
+    const rsi = calculateRSI(closes, 14)
+    const ema = calculateEMASignals(closes)
+    const bollingerBands = calculateBollingerBands(closes, 20, 2)
+    const stochastic = calculateStochastic(highs, lows, closes, 5, 3)
+
+    // Calculate confluence score
+    const confluence = calculateConfluence(rsi, ema, bollingerBands, stochastic)
+
+    const indicators: TechnicalIndicators = {
+      rsi,
+      ema,
+      bollingerBands,
+      stochastic,
+      confluenceScore: confluence.score,
+      confluenceSignal: confluence.signal,
+    }
+
     return {
       currentPrice,
       high24h,
@@ -491,6 +904,7 @@ export class BirdeyeClient {
       trend,
       trendStrength,
       avgVolume,
+      indicators,
       momentum,
       suggestedEntry,
       suggestedStopLoss,
