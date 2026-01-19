@@ -117,17 +117,18 @@ export default async function DashboardPage() {
                     </p>
                   </div>
                   <div className="text-right">
-                    {trade.status === 'completed' ? (
+                    {trade.profit_loss_percent !== null && trade.profit_loss_percent !== undefined ? (
                       <>
                         <p className={`font-medium ${
-                          (trade.profit_loss_percent || 0) >= 0
+                          trade.profit_loss_percent >= 0
                             ? 'text-green-400'
                             : 'text-red-400'
                         }`}>
-                          {(trade.profit_loss_percent || 0) >= 0 ? '+' : ''}
-                          {trade.profit_loss_percent?.toFixed(2)}%
+                          {trade.profit_loss_percent >= 0 ? '+' : ''}
+                          {trade.profit_loss_percent.toFixed(2)}%
                         </p>
                         <p className="text-sm text-zinc-400">
+                          {(trade.profit_loss_sol || 0) >= 0 ? '+' : ''}
                           {trade.profit_loss_sol?.toFixed(4)} SOL
                         </p>
                       </>
