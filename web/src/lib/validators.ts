@@ -9,7 +9,7 @@ export const createTradingPlanSchema = z.object({
   token_symbol: z.string().max(20).optional(),  // Optional - pass from UI to avoid API lookup issues
   token_name: z.string().max(100).optional(),   // Optional - pass from UI to avoid API lookup issues
   amount_sol: z.number().positive().max(1000),  // Max 1000 SOL per trade for safety
-  stop_loss_percent: z.number().min(1).max(50),  // 1-50% stop loss
+  stop_loss_percent: z.number().min(1).max(90),  // 1-90% stop loss (high for volatile meme coins)
   take_profit_percent: z.number().min(1).max(500),  // 1-500% take profit
 
   // Limit buy options
@@ -20,7 +20,7 @@ export const createTradingPlanSchema = z.object({
 
   // Trailing stop options
   use_trailing_stop: z.boolean().optional().default(false),
-  trailing_stop_percent: z.number().min(1).max(50).optional(),  // Trail X% below peak
+  trailing_stop_percent: z.number().min(1).max(90).optional(),  // Trail X% below peak
 
   // Partial profit-taking options
   use_partial_profit: z.boolean().optional().default(false),
