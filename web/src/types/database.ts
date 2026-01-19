@@ -57,6 +57,14 @@ export interface TradingPlan {
   breakeven_activated_at: string | null
   max_hold_hours: number | null
   time_exit_triggered: boolean | null
+  // Profit protection (dynamic based on volatility)
+  profit_protection_enabled: boolean | null
+  profit_trigger_percent: number | null
+  giveback_allowed_percent: number | null
+  hard_floor_percent: number | null
+  peak_profit_percent: number | null
+  profit_protection_triggered_at: string | null
+  token_volatility_at_entry: number | null
   created_at: string
   updated_at: string
 }

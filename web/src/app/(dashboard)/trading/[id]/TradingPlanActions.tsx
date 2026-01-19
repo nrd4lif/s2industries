@@ -19,6 +19,11 @@ export default function TradingPlanActions({ plan }: Props) {
     target_entry_price: plan.target_entry_price?.toString() || '',
     entry_threshold_percent: plan.entry_threshold_percent?.toString() || '1.0',
     max_wait_hours: plan.max_wait_hours?.toString() || '24',
+    // Profit protection
+    profit_protection_enabled: plan.profit_protection_enabled ?? true,
+    profit_trigger_percent: plan.profit_trigger_percent?.toString() || '',
+    giveback_allowed_percent: plan.giveback_allowed_percent?.toString() || '',
+    hard_floor_percent: plan.hard_floor_percent?.toString() || '',
   })
   const router = useRouter()
 
@@ -75,7 +80,7 @@ export default function TradingPlanActions({ plan }: Props) {
     setError(null)
 
     try {
-      const updates: Record<string, number> = {}
+      const updates: Record<string, number | boolean> = {}
 
       if (editForm.amount_sol !== plan.amount_sol.toString()) {
         updates.amount_sol = parseFloat(editForm.amount_sol)
@@ -94,6 +99,19 @@ export default function TradingPlanActions({ plan }: Props) {
       }
       if (editForm.max_wait_hours !== plan.max_wait_hours?.toString()) {
         updates.max_wait_hours = parseFloat(editForm.max_wait_hours)
+      }
+      // Profit protection updates
+      if (editForm.profit_protection_enabled !== (plan.profit_protection_enabled ?? true)) {
+        updates.profit_protection_enabled = editForm.profit_protection_enabled
+      }
+      if (editForm.profit_trigger_percent && editForm.profit_trigger_percent !== plan.profit_trigger_percent?.toString()) {
+        updates.profit_trigger_percent = parseFloat(editForm.profit_trigger_percent)
+      }
+      if (editForm.giveback_allowed_percent && editForm.giveback_allowed_percent !== plan.giveback_allowed_percent?.toString()) {
+        updates.giveback_allowed_percent = parseFloat(editForm.giveback_allowed_percent)
+      }
+      if (editForm.hard_floor_percent && editForm.hard_floor_percent !== plan.hard_floor_percent?.toString()) {
+        updates.hard_floor_percent = parseFloat(editForm.hard_floor_percent)
       }
 
       if (Object.keys(updates).length === 0) {
@@ -234,6 +252,81 @@ export default function TradingPlanActions({ plan }: Props) {
           </>
         )}
 
+        {/* Profit Protection - editable for active and waiting_entry */}
+        {(isActive || plan.status === 'waiting_entry') && (
+          <div className="p-3 bg-zinc-800/50 rounded-lg space-y-3">
+            <div className="flex items-center justify-between">
+              <h4 className="text-sm font-medium text-white">Profit Protection</h4>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={editForm.profit_protection_enabled}
+                  onChange={(e) => setEditForm({ ...editForm, profit_protection_enabled: e.target.checked })}
+                  className="w-4 h-4 rounded border-zinc-600 bg-zinc-700 text-blue-500 focus:ring-blue-500"
+                />
+                <span className="text-xs text-zinc-400">Enabled</span>
+              </label>
+            </div>
+
+            {editForm.profit_protection_enabled && (
+              <>
+                <p className="text-xs text-zinc-500">
+                  Based on {plan.token_volatility_at_entry?.toFixed(1) || '?'}% volatility at entry
+                </p>
+
+                <div>
+                  <label className="block text-xs text-zinc-400 mb-1">
+                    Start protecting at (% profit)
+                  </label>
+                  <input
+                    type="number"
+                    value={editForm.profit_trigger_percent}
+                    onChange={(e) => setEditForm({ ...editForm, profit_trigger_percent: e.target.value })}
+                    className="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    min="1"
+                    max="100"
+                    step="0.5"
+                    placeholder="e.g. 12"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs text-zinc-400 mb-1">
+                      Check MACD after (% drop)
+                    </label>
+                    <input
+                      type="number"
+                      value={editForm.giveback_allowed_percent}
+                      onChange={(e) => setEditForm({ ...editForm, giveback_allowed_percent: e.target.value })}
+                      className="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      min="0.5"
+                      max="50"
+                      step="0.5"
+                      placeholder="e.g. 4"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-zinc-400 mb-1">
+                      Hard exit after (% drop)
+                    </label>
+                    <input
+                      type="number"
+                      value={editForm.hard_floor_percent}
+                      onChange={(e) => setEditForm({ ...editForm, hard_floor_percent: e.target.value })}
+                      className="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      min="0.5"
+                      max="50"
+                      step="0.5"
+                      placeholder="e.g. 6"
+                    />
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
+        )}
+
         <div className="flex gap-3">
           <button
             onClick={handleSaveEdit}
@@ -254,6 +347,10 @@ export default function TradingPlanActions({ plan }: Props) {
                 target_entry_price: plan.target_entry_price?.toString() || '',
                 entry_threshold_percent: plan.entry_threshold_percent?.toString() || '1.0',
                 max_wait_hours: plan.max_wait_hours?.toString() || '24',
+                profit_protection_enabled: plan.profit_protection_enabled ?? true,
+                profit_trigger_percent: plan.profit_trigger_percent?.toString() || '',
+                giveback_allowed_percent: plan.giveback_allowed_percent?.toString() || '',
+                hard_floor_percent: plan.hard_floor_percent?.toString() || '',
               })
             }}
             disabled={loading}

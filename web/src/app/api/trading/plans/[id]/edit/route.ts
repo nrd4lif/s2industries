@@ -16,6 +16,11 @@ const editPlanSchema = z.object({
   use_breakeven_stop: z.boolean().optional(),
   breakeven_trigger_percent: z.number().min(1).max(50).optional(),
   max_hold_hours: z.number().min(1).max(720).nullable().optional(),
+  // Profit protection
+  profit_protection_enabled: z.boolean().optional(),
+  profit_trigger_percent: z.number().min(1).max(100).optional(),
+  giveback_allowed_percent: z.number().min(0.5).max(50).optional(),
+  hard_floor_percent: z.number().min(0.5).max(50).optional(),
 })
 
 interface RouteContext {
@@ -93,6 +98,20 @@ export async function PATCH(request: Request, context: RouteContext) {
     }
     if (input.max_hold_hours !== undefined) {
       updates.max_hold_hours = input.max_hold_hours
+    }
+
+    // Profit protection settings (can be edited on any plan status)
+    if (input.profit_protection_enabled !== undefined) {
+      updates.profit_protection_enabled = input.profit_protection_enabled
+    }
+    if (input.profit_trigger_percent !== undefined) {
+      updates.profit_trigger_percent = input.profit_trigger_percent
+    }
+    if (input.giveback_allowed_percent !== undefined) {
+      updates.giveback_allowed_percent = input.giveback_allowed_percent
+    }
+    if (input.hard_floor_percent !== undefined) {
+      updates.hard_floor_percent = input.hard_floor_percent
     }
 
     // Recalculate stop loss and take profit prices

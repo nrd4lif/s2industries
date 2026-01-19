@@ -311,6 +311,8 @@ export async function GET(request: Request) {
                 // Partial profit
                 partial_profit_price: partialProfitPrice,
                 remaining_tokens: tokensReceived,
+                // Initialize profit protection tracking
+                peak_profit_percent: 0,
               })
               .eq('id', plan.id)
 
@@ -572,16 +574,99 @@ export async function GET(request: Request) {
         }
 
         // ========================================
+        // ADVANCED FEATURE: Profit Protection (MACD + Ratchet hybrid)
+        // ========================================
+        let profitProtectionExit = false
+        let profitProtectionReason = ''
+
+        if (plan.profit_protection_enabled && plan.entry_price_usd) {
+          const currentProfitPercent = ((currentPriceUsd - plan.entry_price_usd) / plan.entry_price_usd) * 100
+          const peakProfitPercent = plan.peak_profit_percent || 0
+
+          // Update peak profit if we've hit a new high
+          if (currentProfitPercent > peakProfitPercent) {
+            await supabase
+              .from('trading_plans')
+              .update({
+                peak_profit_percent: currentProfitPercent,
+                profit_protection_triggered_at: !plan.profit_protection_triggered_at && currentProfitPercent >= (plan.profit_trigger_percent || 10)
+                  ? new Date().toISOString()
+                  : plan.profit_protection_triggered_at,
+              })
+              .eq('id', plan.id)
+
+            plan.peak_profit_percent = currentProfitPercent
+
+            console.log(`New peak profit for ${plan.token_symbol}: ${currentProfitPercent.toFixed(2)}%`)
+          }
+
+          // Check if protection should trigger
+          const profitTrigger = plan.profit_trigger_percent || 10
+          const givebackAllowed = plan.giveback_allowed_percent || 4
+          const hardFloor = plan.hard_floor_percent || 6
+
+          // Only engage protection if we've passed the trigger threshold
+          if (peakProfitPercent >= profitTrigger && currentProfitPercent > 0) {
+            const dropFromPeak = peakProfitPercent - currentProfitPercent
+
+            console.log(`Profit protection check for ${plan.token_symbol}:`, {
+              currentProfit: currentProfitPercent.toFixed(2) + '%',
+              peakProfit: peakProfitPercent.toFixed(2) + '%',
+              dropFromPeak: dropFromPeak.toFixed(2) + '%',
+              givebackAllowed: givebackAllowed + '%',
+              hardFloor: hardFloor + '%',
+            })
+
+            // Hard floor - exit regardless of MACD
+            if (dropFromPeak >= hardFloor) {
+              profitProtectionExit = true
+              profitProtectionReason = `Hard floor hit: dropped ${dropFromPeak.toFixed(1)}% from peak (limit: ${hardFloor}%)`
+              console.log(`PROFIT PROTECTION: Hard floor exit for ${plan.token_symbol} - ${profitProtectionReason}`)
+            }
+            // Soft trigger - check MACD for confirmation
+            else if (dropFromPeak >= givebackAllowed) {
+              try {
+                const analysis = await birdeye.analyzeToken(plan.token_mint)
+                const macd = analysis.indicators.macd
+
+                console.log(`MACD check for profit protection on ${plan.token_symbol}:`, {
+                  macdTrend: macd.trend,
+                  macdMomentum: macd.momentum,
+                  macdCrossover: macd.crossover,
+                  histogramTrend: macd.histogramTrend,
+                })
+
+                // Exit if MACD confirms bearish momentum
+                if (macd.crossover === 'bearish' ||
+                    (macd.trend === 'bearish' && macd.momentum === 'strengthening') ||
+                    (macd.histogram < 0 && macd.histogramTrend === 'growing')) {
+                  profitProtectionExit = true
+                  profitProtectionReason = `MACD confirms reversal: dropped ${dropFromPeak.toFixed(1)}% from peak, MACD ${macd.trend}/${macd.momentum}`
+                  console.log(`PROFIT PROTECTION: MACD exit for ${plan.token_symbol} - ${profitProtectionReason}`)
+                } else {
+                  console.log(`Profit protection: dropped ${dropFromPeak.toFixed(1)}% but MACD still ${macd.trend}/${macd.momentum} - holding`)
+                }
+              } catch (analysisErr) {
+                console.error(`Failed to get MACD for profit protection:`, analysisErr)
+                // On analysis failure, use hard floor only (already handled above)
+              }
+            }
+          }
+        }
+
+        // ========================================
         // DETERMINE EXIT TRIGGER
         // ========================================
-        let triggered: 'stop_loss' | 'take_profit' | 'trailing_stop' | 'time_exit' | null = null
+        let triggered: 'stop_loss' | 'take_profit' | 'trailing_stop' | 'time_exit' | 'profit_protection' | null = null
 
         // Use trailing stop price if enabled, otherwise fixed stop-loss
         const effectiveStopLoss = plan.use_trailing_stop && plan.trailing_stop_price
           ? plan.trailing_stop_price
           : plan.stop_loss_price
 
-        if (timeExit) {
+        if (profitProtectionExit) {
+          triggered = 'profit_protection'
+        } else if (timeExit) {
           triggered = 'time_exit'
         } else if (currentPriceUsd <= effectiveStopLoss) {
           triggered = plan.use_trailing_stop ? 'trailing_stop' : 'stop_loss'
@@ -632,11 +717,16 @@ export async function GET(request: Request) {
           const profitLossPercent = (profitLossSol / plan.amount_sol) * 100
 
           // Update plan as completed
+          // Map triggered type to valid trigger_type enum
+          const triggeredByValue = triggered === 'trailing_stop' || triggered === 'time_exit' || triggered === 'profit_protection'
+            ? 'stop_loss'  // Map to stop_loss for DB constraint
+            : triggered
+
           await supabase
             .from('trading_plans')
             .update({
               status: 'completed',
-              triggered_by: triggered === 'trailing_stop' ? 'stop_loss' : triggered === 'time_exit' ? 'stop_loss' : triggered,
+              triggered_by: triggeredByValue,
               triggered_at: new Date().toISOString(),
               exit_tx_signature: result.signature,
               exit_price_usd: currentPriceUsd,
@@ -671,7 +761,7 @@ export async function GET(request: Request) {
                 to: userEmail,
                 tokenSymbol: plan.token_symbol || 'Unknown',
                 tokenMint: plan.token_mint,
-                triggeredBy: triggered === 'trailing_stop' ? 'stop_loss' : triggered === 'time_exit' ? 'stop_loss' : triggered,
+                triggeredBy: triggered === 'trailing_stop' || triggered === 'time_exit' || triggered === 'profit_protection' ? 'stop_loss' : triggered,
                 entryPriceSol: plan.amount_sol / (plan.amount_tokens || 1),
                 exitPriceSol: solReceived / (plan.amount_tokens || 1),
                 amountSol: plan.amount_sol,

@@ -34,6 +34,12 @@ export const createTradingPlanSchema = z.object({
 
   // Time-based exit
   max_hold_hours: z.number().min(1).max(720).optional(),  // Auto-exit after X hours (max 30 days)
+
+  // Profit protection options (defaults calculated from volatility at activation)
+  profit_protection_enabled: z.boolean().optional().default(true),
+  profit_trigger_percent: z.number().min(1).max(100).optional(),      // Start protecting after this profit %
+  giveback_allowed_percent: z.number().min(0.5).max(50).optional(),   // Check MACD after this % drop from peak
+  hard_floor_percent: z.number().min(0.5).max(50).optional(),         // Force exit after this % drop from peak
 })
 
 // Activate a draft plan

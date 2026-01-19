@@ -2,8 +2,21 @@ import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { requireAuth } from '@/lib/auth'
 import { JupiterClient } from '@/lib/jupiter'
+import { BirdeyeClient } from '@/lib/birdeye'
 import { decryptPrivateKey } from '@/lib/crypto'
 import { sendTradeEntryEmail } from '@/lib/email'
+
+// Calculate profit protection defaults based on volatility
+function calculateProfitProtectionDefaults(volatility: number) {
+  // Clamp volatility to reasonable range (2-30%)
+  const clampedVolatility = Math.max(2, Math.min(30, volatility))
+
+  return {
+    profitTriggerPercent: Math.round(clampedVolatility * 1.5 * 10) / 10,      // Start protecting at 1.5x volatility
+    givebackAllowedPercent: Math.round(clampedVolatility * 0.5 * 10) / 10,   // Check MACD after 0.5x volatility drop
+    hardFloorPercent: Math.round(clampedVolatility * 0.75 * 10) / 10,        // Force exit at 0.75x volatility drop
+  }
+}
 
 interface RouteContext {
   params: Promise<{ id: string }>
@@ -34,13 +47,40 @@ export async function POST(request: Request, context: RouteContext) {
     // Check if this is a limit buy order
     const isLimitBuy = plan.target_entry_price !== null
 
+    // Analyze token to get volatility for profit protection defaults
+    let volatility = 8 // Default if analysis fails
+    let profitProtectionDefaults = calculateProfitProtectionDefaults(volatility)
+
+    try {
+      const birdeye = new BirdeyeClient(process.env.BIRDEYE_API_KEY || '')
+      const analysis = await birdeye.analyzeToken(plan.token_mint)
+      volatility = analysis.volatility
+      profitProtectionDefaults = calculateProfitProtectionDefaults(volatility)
+      console.log(`Token volatility for ${plan.token_symbol}: ${volatility}%, protection defaults:`, profitProtectionDefaults)
+    } catch (analysisErr) {
+      console.error('Failed to analyze token for volatility:', analysisErr)
+      // Continue with default volatility
+    }
+
+    // Use plan values if set, otherwise use calculated defaults
+    const profitProtectionEnabled = plan.profit_protection_enabled ?? true
+    const profitTriggerPercent = plan.profit_trigger_percent ?? profitProtectionDefaults.profitTriggerPercent
+    const givebackAllowedPercent = plan.giveback_allowed_percent ?? profitProtectionDefaults.givebackAllowedPercent
+    const hardFloorPercent = plan.hard_floor_percent ?? profitProtectionDefaults.hardFloorPercent
+
     if (isLimitBuy) {
-      // For limit buy, transition to waiting_entry status
+      // For limit buy, transition to waiting_entry status with profit protection settings
       const { error: updateError } = await supabase
         .from('trading_plans')
         .update({
           status: 'waiting_entry',
           waiting_since: new Date().toISOString(),
+          // Store profit protection settings
+          profit_protection_enabled: profitProtectionEnabled,
+          profit_trigger_percent: profitTriggerPercent,
+          giveback_allowed_percent: givebackAllowedPercent,
+          hard_floor_percent: hardFloorPercent,
+          token_volatility_at_entry: volatility,
         })
         .eq('id', id)
 
@@ -57,6 +97,13 @@ export async function POST(request: Request, context: RouteContext) {
         targetPrice: plan.target_entry_price,
         thresholdPercent: plan.entry_threshold_percent,
         maxWaitHours: plan.max_wait_hours,
+        volatility,
+        profitProtection: {
+          enabled: profitProtectionEnabled,
+          triggerPercent: profitTriggerPercent,
+          givebackAllowedPercent,
+          hardFloorPercent,
+        },
         message: `Limit order activated. Will buy when price reaches $${plan.target_entry_price.toFixed(8)} (±${plan.entry_threshold_percent}%)`,
       })
     }
@@ -123,7 +170,7 @@ export async function POST(request: Request, context: RouteContext) {
       takeProfitPrice: entryPriceUsd * (1 + plan.take_profit_percent / 100),
     })
 
-    // Update plan to active
+    // Update plan to active with profit protection settings
     const { error: updateError } = await supabase
       .from('trading_plans')
       .update({
@@ -133,6 +180,13 @@ export async function POST(request: Request, context: RouteContext) {
         stop_loss_price: entryPriceUsd * (1 - plan.stop_loss_percent / 100),
         take_profit_price: entryPriceUsd * (1 + plan.take_profit_percent / 100),
         entry_tx_signature: result.signature,
+        // Profit protection settings
+        profit_protection_enabled: profitProtectionEnabled,
+        profit_trigger_percent: profitTriggerPercent,
+        giveback_allowed_percent: givebackAllowedPercent,
+        hard_floor_percent: hardFloorPercent,
+        token_volatility_at_entry: volatility,
+        peak_profit_percent: 0, // Initialize peak tracking
       })
       .eq('id', id)
 
