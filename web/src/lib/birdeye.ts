@@ -659,17 +659,40 @@ export class BirdeyeClient {
     url.searchParams.set('time_from', params.timeFrom.toString())
     url.searchParams.set('time_to', params.timeTo.toString())
 
+    console.log('Fetching OHLCV from Birdeye:', {
+      url: url.toString(),
+      address: params.address,
+      interval: params.interval,
+      timeFrom: new Date(params.timeFrom * 1000).toISOString(),
+      timeTo: new Date(params.timeTo * 1000).toISOString(),
+    })
+
     const res = await fetch(url.toString(), { headers: this.headers })
 
     if (!res.ok) {
       const errorText = await res.text()
-      console.error('Birdeye error response:', errorText)
+      console.error('Birdeye error response:', {
+        status: res.status,
+        statusText: res.statusText,
+        body: errorText,
+        address: params.address,
+      })
       throw new Error(`Birdeye OHLCV failed: ${res.status} - ${errorText}`)
     }
 
     const data = await res.json() as OHLCVResponse
 
+    console.log('Birdeye response:', {
+      address: params.address,
+      success: data.success,
+      itemCount: data.data?.items?.length || 0,
+    })
+
     if (!data.success || !data.data?.items) {
+      console.error('Invalid Birdeye response:', {
+        address: params.address,
+        data: JSON.stringify(data, null, 2),
+      })
       throw new Error('Invalid Birdeye response')
     }
 
@@ -683,6 +706,8 @@ export class BirdeyeClient {
     const now = Math.floor(Date.now() / 1000)
     const oneDayAgo = now - (24 * 60 * 60)
 
+    console.log('Starting token analysis for:', address)
+
     const candles = await this.getOHLCV({
       address,
       interval: '15m',
@@ -690,8 +715,12 @@ export class BirdeyeClient {
       timeTo: now,
     })
 
+    console.log(`Received ${candles.length} candles for token ${address}`)
+
     if (candles.length < 10) {
-      throw new Error('Insufficient price data (need at least 10 candles)')
+      const errorMsg = `Insufficient price data for token ${address}: received ${candles.length} candles, need at least 10. This token may be too new or have low trading activity.`
+      console.error(errorMsg)
+      throw new Error(errorMsg)
     }
 
     // Sort by time ascending

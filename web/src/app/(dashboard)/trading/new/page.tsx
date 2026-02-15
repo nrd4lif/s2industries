@@ -27,6 +27,7 @@ export default function NewTradePage() {
   const [loading, setLoading] = useState(false)
   const [analyzing, setAnalyzing] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [analysisError, setAnalysisError] = useState<string | null>(null)
   const [initialized, setInitialized] = useState(false)
   const router = useRouter()
 
@@ -71,6 +72,7 @@ export default function NewTradePage() {
 
         // Analyze token with Birdeye
         setAnalyzing(true)
+        setAnalysisError(null)
         try {
           const analysisRes = await fetch(`/api/tokens/analyze?address=${mint}`)
           const analysisData = await analysisRes.json()
@@ -83,8 +85,13 @@ export default function NewTradePage() {
             if (analysisData.analysis.entrySignal === 'wait') {
               setUseLimitBuy(true)
             }
+          } else if (analysisData.error) {
+            setAnalysisError(analysisData.error)
+            console.error('Analysis failed:', analysisData.error)
           }
         } catch (err) {
+          const errorMsg = err instanceof Error ? err.message : 'Failed to analyze token'
+          setAnalysisError(errorMsg)
           console.error('Analysis failed:', err)
         }
         setAnalyzing(false)
@@ -127,6 +134,7 @@ export default function NewTradePage() {
 
       // Analyze token with Birdeye
       setAnalyzing(true)
+      setAnalysisError(null)
       try {
         const analysisRes = await fetch(`/api/tokens/analyze?address=${token.mint}`)
         const analysisData = await analysisRes.json()
@@ -139,8 +147,13 @@ export default function NewTradePage() {
           if (analysisData.analysis.entrySignal === 'wait') {
             setUseLimitBuy(true)
           }
+        } else if (analysisData.error) {
+          setAnalysisError(analysisData.error)
+          console.error('Analysis failed:', analysisData.error)
         }
       } catch (err) {
+        const errorMsg = err instanceof Error ? err.message : 'Failed to analyze token'
+        setAnalysisError(errorMsg)
         console.error('Analysis failed:', err)
       }
       setAnalyzing(false)
@@ -566,10 +579,76 @@ export default function NewTradePage() {
 
         {/* Token found but no analysis */}
         {tokenInfo && !analysis && !analyzing && (
-          <div className="p-4 bg-yellow-500/10 border border-yellow-500/30 rounded-lg">
-            <p className="text-yellow-400 text-sm">
-              Could not fetch price history for this token. You can still create a manual trade plan.
-            </p>
+          <div className="space-y-4">
+            <div className="p-4 bg-yellow-500/10 border border-yellow-500/30 rounded-lg">
+              <p className="text-yellow-400 text-sm font-medium mb-2">
+                Could not fetch price history for this token.
+              </p>
+              {analysisError && (
+                <p className="text-yellow-300 text-xs mb-2">
+                  Error: {analysisError}
+                </p>
+              )}
+              <p className="text-yellow-400 text-sm">
+                You can still create a manual trade plan by entering your parameters below.
+              </p>
+            </div>
+
+            {/* Manual trade parameters when analysis fails */}
+            <div>
+              <label className="block text-sm font-medium text-zinc-400 mb-1">
+                Amount (SOL)
+              </label>
+              <input
+                type="number"
+                value={amountSol}
+                onChange={(e) => setAmountSol(e.target.value)}
+                className="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                min="0.01"
+                step="0.01"
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-zinc-400 mb-1">
+                  Stop Loss (%)
+                </label>
+                <input
+                  type="number"
+                  value={stopLoss}
+                  onChange={(e) => setStopLoss(e.target.value)}
+                  className="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  min="1"
+                  max="50"
+                  step="0.1"
+                  placeholder="e.g. 5"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-zinc-400 mb-1">
+                  Take Profit (%)
+                </label>
+                <input
+                  type="number"
+                  value={takeProfit}
+                  onChange={(e) => setTakeProfit(e.target.value)}
+                  className="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  min="1"
+                  max="500"
+                  step="0.1"
+                  placeholder="e.g. 10"
+                />
+              </div>
+            </div>
+
+            <button
+              onClick={handleCreatePlan}
+              disabled={loading || !stopLoss || !takeProfit}
+              className="w-full py-3 px-4 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-800 disabled:cursor-not-allowed text-white font-medium rounded-lg transition-colors"
+            >
+              {loading ? 'Creating...' : 'Create Manual Trading Plan'}
+            </button>
           </div>
         )}
 

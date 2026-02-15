@@ -121,9 +121,19 @@ export async function GET(request: Request) {
 
     return NextResponse.json({ analysis })
   } catch (err) {
-    console.error('Token analysis error:', err)
+    console.error('Token analysis error:', {
+      error: err,
+      message: err instanceof Error ? err.message : 'Unknown error',
+      stack: err instanceof Error ? err.stack : undefined,
+    })
+
+    // Return more detailed error messages to help with debugging
+    const errorMessage = err instanceof Error ? err.message : 'Failed to analyze token'
     return NextResponse.json(
-      { error: err instanceof Error ? err.message : 'Failed to analyze token' },
+      {
+        error: errorMessage,
+        details: err instanceof Error ? err.stack : undefined,
+      },
       { status: 500 }
     )
   }
