@@ -211,7 +211,7 @@ function CardioEditor({
     <div className="space-y-6">
       <h3 className="text-lg font-semibold text-white">Treadmill Session</h3>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3 sm:gap-6">
         {/* Warmup */}
         <CardioSegmentEditor
           label="Warmup"
@@ -262,41 +262,50 @@ function CardioSegmentEditor({
       <h4 className={`font-medium mb-4 ${highlight ? 'text-blue-400' : 'text-zinc-400'}`}>
         {label}
       </h4>
-      <div className="space-y-4">
+      <div className="grid grid-cols-3 sm:grid-cols-1 gap-3 sm:gap-4">
         <div>
-          <label className="block text-sm text-zinc-500 mb-1">Duration (min)</label>
-          <input
-            type="number"
-            value={segment.duration}
-            onChange={(e) => onChange({ ...segment, duration: parseInt(e.target.value) || 0 })}
-            min="1"
-            max="120"
-            className="w-full px-3 py-2 bg-zinc-700 border border-zinc-600 rounded text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
+          <label className="block text-xs sm:text-sm text-zinc-500 mb-1">Duration</label>
+          <div className="flex items-center gap-1">
+            <input
+              type="number"
+              value={segment.duration}
+              onChange={(e) => onChange({ ...segment, duration: parseInt(e.target.value) || 0 })}
+              min="1"
+              max="120"
+              className="w-full px-2 sm:px-3 py-2 bg-zinc-700 border border-zinc-600 rounded text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+            <span className="text-xs text-zinc-500 sm:hidden">min</span>
+          </div>
         </div>
         <div>
-          <label className="block text-sm text-zinc-500 mb-1">Incline (%)</label>
-          <input
-            type="number"
-            value={segment.incline}
-            onChange={(e) => onChange({ ...segment, incline: parseFloat(e.target.value) || 0 })}
-            min="0"
-            max="15"
-            step="0.5"
-            className="w-full px-3 py-2 bg-zinc-700 border border-zinc-600 rounded text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
+          <label className="block text-xs sm:text-sm text-zinc-500 mb-1">Incline</label>
+          <div className="flex items-center gap-1">
+            <input
+              type="number"
+              value={segment.incline}
+              onChange={(e) => onChange({ ...segment, incline: parseFloat(e.target.value) || 0 })}
+              min="0"
+              max="15"
+              step="0.5"
+              className="w-full px-2 sm:px-3 py-2 bg-zinc-700 border border-zinc-600 rounded text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+            <span className="text-xs text-zinc-500 sm:hidden">%</span>
+          </div>
         </div>
         <div>
-          <label className="block text-sm text-zinc-500 mb-1">Speed (mph)</label>
-          <input
-            type="number"
-            value={segment.speed}
-            onChange={(e) => onChange({ ...segment, speed: parseFloat(e.target.value) || 0 })}
-            min="0.5"
-            max="12"
-            step="0.1"
-            className="w-full px-3 py-2 bg-zinc-700 border border-zinc-600 rounded text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
+          <label className="block text-xs sm:text-sm text-zinc-500 mb-1">Speed</label>
+          <div className="flex items-center gap-1">
+            <input
+              type="number"
+              value={segment.speed}
+              onChange={(e) => onChange({ ...segment, speed: parseFloat(e.target.value) || 0 })}
+              min="0.5"
+              max="12"
+              step="0.1"
+              className="w-full px-2 sm:px-3 py-2 bg-zinc-700 border border-zinc-600 rounded text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+            <span className="text-xs text-zinc-500 sm:hidden">mph</span>
+          </div>
         </div>
       </div>
     </div>
@@ -404,20 +413,20 @@ function ExerciseEditor({
         </button>
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 sm:gap-4">
         <div>
-          <label className="block text-sm text-zinc-500 mb-1">Sets</label>
+          <label className="block text-xs sm:text-sm text-zinc-500 mb-1">Sets</label>
           <input
             type="number"
             value={exercise.sets}
             onChange={(e) => onChange({ ...exercise, sets: parseInt(e.target.value) || 1 })}
             min="1"
             max="10"
-            className="w-full px-3 py-2 bg-zinc-700 border border-zinc-600 rounded text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full px-2 sm:px-3 py-2 bg-zinc-700 border border-zinc-600 rounded text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
         </div>
         <div>
-          <label className="block text-sm text-zinc-500 mb-1">Reps (min-max)</label>
+          <label className="block text-xs sm:text-sm text-zinc-500 mb-1">Reps</label>
           <div className="flex gap-1 items-center">
             <input
               type="number"
@@ -425,21 +434,21 @@ function ExerciseEditor({
               onChange={(e) => onChange({ ...exercise, reps_min: parseInt(e.target.value) || 1 })}
               min="1"
               max="100"
-              className="w-full px-2 py-2 bg-zinc-700 border border-zinc-600 rounded text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-1 sm:px-2 py-2 bg-zinc-700 border border-zinc-600 rounded text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
-            <span className="text-zinc-500">-</span>
+            <span className="text-zinc-500 text-xs">-</span>
             <input
               type="number"
               value={exercise.reps_max}
               onChange={(e) => onChange({ ...exercise, reps_max: parseInt(e.target.value) || 1 })}
               min="1"
               max="100"
-              className="w-full px-2 py-2 bg-zinc-700 border border-zinc-600 rounded text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-1 sm:px-2 py-2 bg-zinc-700 border border-zinc-600 rounded text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
         </div>
         <div>
-          <label className="block text-sm text-zinc-500 mb-1">Weight (lbs)</label>
+          <label className="block text-xs sm:text-sm text-zinc-500 mb-1">Weight</label>
           <input
             type="number"
             value={exercise.weight || ''}
@@ -452,11 +461,11 @@ function ExerciseEditor({
             min="0"
             step="2.5"
             placeholder="BW"
-            className="w-full px-3 py-2 bg-zinc-700 border border-zinc-600 rounded text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full px-2 sm:px-3 py-2 bg-zinc-700 border border-zinc-600 rounded text-white text-sm placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
         </div>
         <div>
-          <label className="block text-sm text-zinc-500 mb-1">Category</label>
+          <label className="block text-xs sm:text-sm text-zinc-500 mb-1">Category</label>
           <select
             value={exercise.exercise_category}
             onChange={(e) =>
@@ -465,15 +474,15 @@ function ExerciseEditor({
                 exercise_category: e.target.value as 'big' | 'small',
               })
             }
-            className="w-full px-3 py-2 bg-zinc-700 border border-zinc-600 rounded text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full px-2 sm:px-3 py-2 bg-zinc-700 border border-zinc-600 rounded text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
           >
-            <option value="big">Big Lift</option>
-            <option value="small">Small Lift</option>
+            <option value="big">Big</option>
+            <option value="small">Small</option>
           </select>
         </div>
       </div>
 
-      <div className="mt-4 flex items-center gap-4">
+      <div className="mt-3 sm:mt-4 flex flex-col sm:flex-row gap-2 sm:gap-4 sm:items-center">
         <label className="flex items-center gap-2 text-sm text-zinc-400 cursor-pointer">
           <input
             type="checkbox"
@@ -488,7 +497,7 @@ function ExerciseEditor({
           value={exercise.notes || ''}
           onChange={(e) => onChange({ ...exercise, notes: e.target.value || undefined })}
           placeholder="Notes..."
-          className="flex-1 px-3 py-1 text-sm bg-zinc-700 border border-zinc-600 rounded text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="flex-1 px-3 py-2 sm:py-1 text-sm bg-zinc-700 border border-zinc-600 rounded text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
         />
       </div>
     </div>

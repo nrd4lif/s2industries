@@ -141,11 +141,11 @@ function CardioDetails({ plan }: { plan: CardioPlanned }) {
   return (
     <div className="space-y-4">
       <h3 className="text-lg font-semibold text-white">Treadmill Session</h3>
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         {/* Warmup */}
         <div className="bg-zinc-800 rounded-lg p-4">
           <h4 className="text-sm font-medium text-zinc-400 mb-2">Warmup</h4>
-          <div className="space-y-1 text-sm">
+          <div className="flex sm:flex-col gap-3 sm:gap-1 text-sm">
             <p className="text-white">{plan.warmup.duration} min</p>
             <p className="text-zinc-400">{plan.warmup.incline}% incline</p>
             <p className="text-zinc-400">{plan.warmup.speed} mph</p>
@@ -155,7 +155,7 @@ function CardioDetails({ plan }: { plan: CardioPlanned }) {
         {/* Main */}
         <div className="bg-blue-600/20 border border-blue-600/30 rounded-lg p-4">
           <h4 className="text-sm font-medium text-blue-400 mb-2">Main</h4>
-          <div className="space-y-1 text-sm">
+          <div className="flex sm:flex-col gap-3 sm:gap-1 text-sm">
             <p className="text-white font-semibold">{plan.main.duration} min</p>
             <p className="text-blue-300">{plan.main.incline}% incline</p>
             <p className="text-blue-300">{plan.main.speed} mph</p>
@@ -165,7 +165,7 @@ function CardioDetails({ plan }: { plan: CardioPlanned }) {
         {/* Cooldown */}
         <div className="bg-zinc-800 rounded-lg p-4">
           <h4 className="text-sm font-medium text-zinc-400 mb-2">Cooldown</h4>
-          <div className="space-y-1 text-sm">
+          <div className="flex sm:flex-col gap-3 sm:gap-1 text-sm">
             <p className="text-white">{plan.cooldown.duration} min</p>
             <p className="text-zinc-400">{plan.cooldown.incline}% incline</p>
             <p className="text-zinc-400">{plan.cooldown.speed} mph</p>
