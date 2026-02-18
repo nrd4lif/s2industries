@@ -17,6 +17,7 @@ export default function MobileNav({ userEmail }: MobileNavProps) {
     { href: '/analytics', label: 'Analytics' },
     { href: '/trading/trending', label: 'Trending' },
     { href: '/trading/new', label: 'New Trade' },
+    { href: '/fitness', label: 'Fitness' },
     { href: '/settings/wallet', label: 'Wallet' },
   ]
 
