@@ -70,6 +70,8 @@ export interface WorkoutDay {
   completed_at: string | null
   notes: string | null
   week_number: number
+  ai_generated: boolean
+  ai_notes: string | null
   created_at: string
   updated_at: string
 }
@@ -96,8 +98,66 @@ export interface UserFitnessSettings {
   hamstring_curl_weight: number
   calf_raise_weight: number
   timezone: string
+  // Health and AI fields
+  health_considerations: string | null
+  fitness_goals: string | null
+  experience_level: string
+  last_ai_analysis_at: string | null
+  ai_recommendations: AIRecommendations | null
   created_at: string
   updated_at: string
+}
+
+// AI Recommendations structure
+export interface AIRecommendations {
+  exercises_to_modify: Array<{
+    exercise_name: string
+    current_weight: number | null
+    suggested_weight: number | null
+    current_sets: number
+    suggested_sets: number
+    current_reps: string
+    suggested_reps: string
+    reason: string
+  }>
+  exercises_to_add: Array<{
+    name: string
+    sets: number
+    reps_min: number
+    reps_max: number
+    weight: number | null
+    reason: string
+    exercise_category: 'big' | 'small'
+    day_type: 'UPPER' | 'LOWER'
+  }>
+  exercises_to_remove: string[]
+  cardio_adjustments: {
+    current_duration: number
+    suggested_duration: number
+    current_incline: number
+    suggested_incline: number
+    current_speed: number
+    suggested_speed: number
+    reason: string
+  } | null
+  progression_notes: string[]
+  warnings: string[]
+  deload_recommended: boolean
+  deload_reason?: string
+}
+
+// AI Analysis record
+export interface AIAnalysis {
+  id: string
+  user_id: string
+  analysis_date: string
+  workouts_analyzed: number
+  date_range_start: string
+  date_range_end: string
+  performance_summary: string
+  recommendations: AIRecommendations
+  days_generated: number
+  created_at: string
 }
 
 // Type guards

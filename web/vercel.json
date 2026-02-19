@@ -7,6 +7,10 @@
     {
       "path": "/api/cron/analyze-trending",
       "schedule": "0 */4 * * *"
+    },
+    {
+      "path": "/api/cron/fitness-planner",
+      "schedule": "0 6 * * *"
     }
   ]
 }

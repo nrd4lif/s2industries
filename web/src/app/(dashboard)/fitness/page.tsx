@@ -1,9 +1,10 @@
 import { requireAuth } from '@/lib/auth'
 import { createClient } from '@/lib/supabase/server'
 import { generatePlan, getTodayInChicago, parseDateString } from '@/lib/fitness/plan-generator'
-import { WorkoutDay } from '@/types/fitness'
+import { WorkoutDay, AIRecommendations } from '@/types/fitness'
 import TodayCard from './components/TodayCard'
 import ThirtyDayView from './components/ThirtyDayView'
+import AIInsights from './components/AIInsights'
 
 async function getWorkoutDays(userId: string): Promise<WorkoutDay[]> {
   const supabase = await createClient()
@@ -82,14 +83,28 @@ async function getWorkoutDays(userId: string): Promise<WorkoutDay[]> {
   return (existingDays || []) as WorkoutDay[]
 }
 
+async function getUserSettings(userId: string) {
+  const supabase = await createClient()
+  const { data } = await supabase
+    .from('user_fitness_settings')
+    .select('ai_recommendations, last_ai_analysis_at')
+    .eq('user_id', userId)
+    .single()
+
+  return data
+}
+
 export default async function FitnessPage() {
   const user = await requireAuth()
-  const days = await getWorkoutDays(user.id)
+  const [days, settings] = await Promise.all([
+    getWorkoutDays(user.id),
+    getUserSettings(user.id),
+  ])
   const today = getTodayInChicago()
   const todayWorkout = days.find(d => d.workout_date === today)
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-white">Fitness</h1>
       </div>
@@ -98,6 +113,12 @@ export default async function FitnessPage() {
       {todayWorkout && (
         <TodayCard workout={todayWorkout} />
       )}
+
+      {/* AI Insights */}
+      <AIInsights
+        recommendations={settings?.ai_recommendations as AIRecommendations | null}
+        lastAnalysisAt={settings?.last_ai_analysis_at || null}
+      />
 
       {/* 30-Day Outlook */}
       <ThirtyDayView days={days} today={today} />
