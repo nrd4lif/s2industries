@@ -1,11 +1,11 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { requireAuth } from '@/lib/auth'
-import { analyzeWorkoutsAndGeneratePlan, HealthProfile } from '@/lib/fitness/ai-analyzer'
+import { analyzeWorkouts, HealthProfile } from '@/lib/fitness/ai-analyzer'
 import { WorkoutDay } from '@/types/fitness'
 import { getTodayInChicago } from '@/lib/fitness/plan-generator'
 
-// POST /api/fitness/analyze - Run AI analysis on workout history and generate new plan
+// POST /api/fitness/analyze - Run AI analysis on workout history (recommendations only)
 export async function POST(request: Request) {
   try {
     const user = await requireAuth()
@@ -13,7 +13,6 @@ export async function POST(request: Request) {
     const body = await request.json()
 
     const daysToAnalyze = body.days_to_analyze || 30
-    const daysToGenerate = body.days_to_generate || 7
 
     // Get user's health profile
     const { data: settings } = await supabase
@@ -53,11 +52,10 @@ export async function POST(request: Request) {
       }, { status: 400 })
     }
 
-    // Run AI analysis
-    const analysis = await analyzeWorkoutsAndGeneratePlan(
+    // Run AI analysis (recommendations only, no plan generation)
+    const analysis = await analyzeWorkouts(
       workouts as WorkoutDay[],
-      healthProfile,
-      daysToGenerate
+      healthProfile
     )
 
     // Store the analysis
@@ -70,7 +68,7 @@ export async function POST(request: Request) {
         date_range_end: today,
         performance_summary: analysis.performance_summary,
         recommendations: analysis.recommendations,
-        days_generated: analysis.next_week_plan.length,
+        days_generated: 0, // No longer generating days
         raw_response: JSON.stringify(analysis),
       })
 
@@ -79,42 +77,7 @@ export async function POST(request: Request) {
       // Continue anyway - the analysis was successful
     }
 
-    // Generate workout days from the plan
-    if (analysis.next_week_plan && analysis.next_week_plan.length > 0) {
-      const tomorrow = new Date(today)
-      tomorrow.setDate(tomorrow.getDate() + 1)
-
-      const newDays = analysis.next_week_plan.map(day => {
-        const workoutDate = new Date(tomorrow)
-        workoutDate.setDate(workoutDate.getDate() + day.day_offset)
-        const dateStr = workoutDate.toISOString().split('T')[0]
-
-        return {
-          user_id: user.id,
-          workout_date: dateStr,
-          workout_type: day.workout_type,
-          planned_json: day.planned_json,
-          ai_generated: true,
-          ai_notes: day.ai_notes,
-          week_number: Math.ceil((day.day_offset + 1) / 7),
-        }
-      })
-
-      // Upsert the new days (update if exists, insert if not)
-      for (const day of newDays) {
-        const { error: upsertError } = await supabase
-          .from('workout_days')
-          .upsert(day, {
-            onConflict: 'user_id,workout_date',
-          })
-
-        if (upsertError) {
-          console.error('Error upserting workout day:', upsertError)
-        }
-      }
-    }
-
-    // Update last analysis timestamp
+    // Update last analysis timestamp and recommendations
     await supabase
       .from('user_fitness_settings')
       .upsert({
@@ -130,7 +93,6 @@ export async function POST(request: Request) {
       analysis: {
         performance_summary: analysis.performance_summary,
         recommendations: analysis.recommendations,
-        days_generated: analysis.next_week_plan.length,
       },
     })
   } catch (error) {

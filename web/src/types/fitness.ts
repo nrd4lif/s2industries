@@ -110,15 +110,21 @@ export interface UserFitnessSettings {
 
 // AI Recommendations structure
 export interface AIRecommendations {
-  exercises_to_modify: Array<{
+  weight_adjustments: Array<{
     exercise_name: string
     current_weight: number | null
     suggested_weight: number | null
-    current_sets: number
-    suggested_sets: number
-    current_reps: string
-    suggested_reps: string
     reason: string
+  }>
+  exercise_swaps: Array<{
+    original_exercise: string
+    replacement_exercise: string
+    reason: string
+    sets: number
+    reps_min: number
+    reps_max: number
+    weight: number | null
+    exercise_category: 'big' | 'small'
   }>
   exercises_to_add: Array<{
     name: string
@@ -130,7 +136,6 @@ export interface AIRecommendations {
     exercise_category: 'big' | 'small'
     day_type: 'UPPER' | 'LOWER'
   }>
-  exercises_to_remove: string[]
   cardio_adjustments: {
     current_duration: number
     suggested_duration: number

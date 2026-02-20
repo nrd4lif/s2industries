@@ -12,6 +12,7 @@ interface AIInsightsProps {
 export default function AIInsights({ recommendations, lastAnalysisAt }: AIInsightsProps) {
   const router = useRouter()
   const [isAnalyzing, setIsAnalyzing] = useState(false)
+  const [isRegenerating, setIsRegenerating] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [showDetails, setShowDetails] = useState(false)
 
@@ -23,10 +24,7 @@ export default function AIInsights({ recommendations, lastAnalysisAt }: AIInsigh
       const res = await fetch('/api/fitness/analyze', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          days_to_analyze: 30,
-          days_to_generate: 7,
-        }),
+        body: JSON.stringify({ days_to_analyze: 30 }),
       })
 
       const data = await res.json()
@@ -37,10 +35,40 @@ export default function AIInsights({ recommendations, lastAnalysisAt }: AIInsigh
       }
 
       router.refresh()
-    } catch (err) {
+    } catch {
       setError('Failed to run analysis')
     } finally {
       setIsAnalyzing(false)
+    }
+  }
+
+  const handleRegenerate = async () => {
+    if (!confirm('This will reset all future workouts to the original templates. Continue?')) {
+      return
+    }
+
+    setIsRegenerating(true)
+    setError(null)
+
+    try {
+      const res = await fetch('/api/fitness/regenerate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ days: 30 }),
+      })
+
+      const data = await res.json()
+
+      if (!res.ok) {
+        setError(data.error || 'Regeneration failed')
+        return
+      }
+
+      router.refresh()
+    } catch {
+      setError('Failed to regenerate workouts')
+    } finally {
+      setIsRegenerating(false)
     }
   }
 
@@ -68,13 +96,22 @@ export default function AIInsights({ recommendations, lastAnalysisAt }: AIInsigh
               </p>
             )}
           </div>
-          <button
-            onClick={handleRunAnalysis}
-            disabled={isAnalyzing}
-            className="px-4 py-2 bg-purple-600 hover:bg-purple-700 disabled:bg-purple-600/50 text-white text-sm font-medium rounded-lg transition-colors"
-          >
-            {isAnalyzing ? 'Analyzing...' : 'Run Analysis'}
-          </button>
+          <div className="flex gap-2">
+            <button
+              onClick={handleRegenerate}
+              disabled={isRegenerating}
+              className="px-3 py-2 bg-zinc-700 hover:bg-zinc-600 disabled:bg-zinc-700/50 text-white text-sm font-medium rounded-lg transition-colors"
+            >
+              {isRegenerating ? 'Resetting...' : 'Reset Plan'}
+            </button>
+            <button
+              onClick={handleRunAnalysis}
+              disabled={isAnalyzing}
+              className="px-4 py-2 bg-purple-600 hover:bg-purple-700 disabled:bg-purple-600/50 text-white text-sm font-medium rounded-lg transition-colors"
+            >
+              {isAnalyzing ? 'Analyzing...' : 'Run Analysis'}
+            </button>
+          </div>
         </div>
       </div>
 
@@ -93,7 +130,7 @@ export default function AIInsights({ recommendations, lastAnalysisAt }: AIInsigh
               No AI analysis yet. Complete a few workouts, then run an analysis to get personalized recommendations.
             </p>
             <p className="text-sm text-zinc-500">
-              The AI will review your workout history and adjust your plan based on your progress and back health considerations.
+              The AI will review your workout history and suggest adjustments for progression and back safety.
             </p>
           </div>
         ) : (
@@ -143,32 +180,40 @@ export default function AIInsights({ recommendations, lastAnalysisAt }: AIInsigh
 
             {showDetails && (
               <div className="space-y-4 pt-2">
-                {/* Exercise Modifications */}
-                {recommendations.exercises_to_modify && recommendations.exercises_to_modify.length > 0 && (
+                {/* Weight Adjustments */}
+                {recommendations.weight_adjustments && recommendations.weight_adjustments.length > 0 && (
                   <div>
-                    <h3 className="text-sm font-medium text-zinc-300 mb-2">Exercise Adjustments</h3>
+                    <h3 className="text-sm font-medium text-zinc-300 mb-2">Weight Adjustments</h3>
                     <div className="space-y-2">
-                      {recommendations.exercises_to_modify.map((mod, idx) => (
+                      {recommendations.weight_adjustments.map((adj, idx) => (
                         <div key={idx} className="bg-zinc-800 rounded-lg p-3">
-                          <p className="font-medium text-white text-sm">{mod.exercise_name}</p>
-                          <div className="flex flex-wrap gap-x-4 gap-y-1 mt-1 text-xs">
-                            {mod.suggested_weight !== mod.current_weight && (
-                              <span className="text-zinc-400">
-                                Weight: {mod.current_weight || 'BW'} → <span className="text-green-400">{mod.suggested_weight || 'BW'}</span>
-                              </span>
-                            )}
-                            {mod.suggested_sets !== mod.current_sets && (
-                              <span className="text-zinc-400">
-                                Sets: {mod.current_sets} → <span className="text-green-400">{mod.suggested_sets}</span>
-                              </span>
-                            )}
-                            {mod.suggested_reps !== mod.current_reps && (
-                              <span className="text-zinc-400">
-                                Reps: {mod.current_reps} → <span className="text-green-400">{mod.suggested_reps}</span>
-                              </span>
-                            )}
-                          </div>
-                          <p className="text-xs text-zinc-500 mt-1">{mod.reason}</p>
+                          <p className="font-medium text-white text-sm">{adj.exercise_name}</p>
+                          <p className="text-xs text-zinc-400 mt-1">
+                            {adj.current_weight || 'BW'}lbs → <span className="text-green-400">{adj.suggested_weight || 'BW'}lbs</span>
+                          </p>
+                          <p className="text-xs text-zinc-500 mt-1">{adj.reason}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Exercise Swaps */}
+                {recommendations.exercise_swaps && recommendations.exercise_swaps.length > 0 && (
+                  <div>
+                    <h3 className="text-sm font-medium text-zinc-300 mb-2">Exercise Swaps (Back Safety)</h3>
+                    <div className="space-y-2">
+                      {recommendations.exercise_swaps.map((swap, idx) => (
+                        <div key={idx} className="bg-orange-600/10 border border-orange-600/30 rounded-lg p-3">
+                          <p className="text-sm text-zinc-400">
+                            <span className="text-red-400 line-through">{swap.original_exercise}</span>
+                            {' → '}
+                            <span className="text-green-400 font-medium">{swap.replacement_exercise}</span>
+                          </p>
+                          <p className="text-xs text-zinc-400 mt-1">
+                            {swap.sets}x{swap.reps_min}-{swap.reps_max} @ {swap.weight || 'BW'}lbs
+                          </p>
+                          <p className="text-xs text-orange-300 mt-1">{swap.reason}</p>
                         </div>
                       ))}
                     </div>
@@ -178,7 +223,7 @@ export default function AIInsights({ recommendations, lastAnalysisAt }: AIInsigh
                 {/* Exercises to Add */}
                 {recommendations.exercises_to_add && recommendations.exercises_to_add.length > 0 && (
                   <div>
-                    <h3 className="text-sm font-medium text-zinc-300 mb-2">Suggested New Exercises</h3>
+                    <h3 className="text-sm font-medium text-zinc-300 mb-2">Suggested Additions</h3>
                     <div className="space-y-2">
                       {recommendations.exercises_to_add.map((ex, idx) => (
                         <div key={idx} className="bg-green-600/10 border border-green-600/30 rounded-lg p-3">
@@ -191,20 +236,6 @@ export default function AIInsights({ recommendations, lastAnalysisAt }: AIInsigh
                           </p>
                           <p className="text-xs text-green-400 mt-1">{ex.reason}</p>
                         </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* Exercises to Remove */}
-                {recommendations.exercises_to_remove && recommendations.exercises_to_remove.length > 0 && (
-                  <div>
-                    <h3 className="text-sm font-medium text-zinc-300 mb-2">Remove These Exercises</h3>
-                    <div className="flex flex-wrap gap-2">
-                      {recommendations.exercises_to_remove.map((name, idx) => (
-                        <span key={idx} className="px-2 py-1 bg-red-600/20 text-red-400 text-xs rounded">
-                          {name}
-                        </span>
                       ))}
                     </div>
                   </div>

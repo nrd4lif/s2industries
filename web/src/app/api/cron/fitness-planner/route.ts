@@ -1,8 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
-import { analyzeWorkoutsAndGeneratePlan, HealthProfile } from '@/lib/fitness/ai-analyzer'
-import { WorkoutDay } from '@/types/fitness'
-import { getTodayInChicago } from '@/lib/fitness/plan-generator'
+import { generatePlan, getTodayInChicago, parseDateString } from '@/lib/fitness/plan-generator'
 
 // Create a service role client for cron jobs (bypasses RLS)
 function createServiceClient() {
@@ -12,8 +10,8 @@ function createServiceClient() {
   )
 }
 
-// GET /api/cron/fitness-planner - Runs daily to extend workout plans
-// Vercel Cron: Add to vercel.json: { "crons": [{ "path": "/api/cron/fitness-planner", "schedule": "0 6 * * *" }] }
+// GET /api/cron/fitness-planner - Runs daily to extend workout plans using templates
+// Vercel Cron: { "path": "/api/cron/fitness-planner", "schedule": "0 6 * * *" }
 export async function GET(request: Request) {
   try {
     // Verify cron secret
@@ -33,7 +31,7 @@ export async function GET(request: Request) {
     // Get all users with fitness settings
     const { data: users, error: usersError } = await supabase
       .from('user_fitness_settings')
-      .select('user_id, health_considerations, fitness_goals, experience_level')
+      .select('user_id')
 
     if (usersError) {
       console.error('Error fetching users:', usersError)
@@ -67,92 +65,66 @@ export async function GET(request: Request) {
           continue
         }
 
-        // Get past workout data for analysis
-        const pastDate = new Date(today)
-        pastDate.setDate(pastDate.getDate() - 30)
-        const pastDateStr = pastDate.toISOString().split('T')[0]
-
-        const { data: workouts, error: workoutsError } = await supabase
-          .from('workout_days')
+        // Get user's full settings for plan generation
+        const { data: settings } = await supabase
+          .from('user_fitness_settings')
           .select('*')
           .eq('user_id', userSettings.user_id)
-          .gte('workout_date', pastDateStr)
-          .lte('workout_date', today)
-          .order('workout_date', { ascending: true })
+          .single()
 
-        if (workoutsError) {
-          errors.push(`User ${userSettings.user_id}: ${workoutsError.message}`)
-          continue
-        }
-
-        // If no workout history, skip AI analysis (user should trigger manually)
-        if (!workouts || workouts.length < 3) {
-          continue
-        }
-
-        const healthProfile: HealthProfile = {
-          health_considerations: userSettings.health_considerations || 'Chronic back problems',
-          fitness_goals: userSettings.fitness_goals || 'General fitness',
-          experience_level: userSettings.experience_level || 'beginner',
-        }
-
-        // Run AI analysis
-        const analysis = await analyzeWorkoutsAndGeneratePlan(
-          workouts as WorkoutDay[],
-          healthProfile,
-          7 // Generate 7 days
-        )
-
-        // Store analysis
-        await supabase
-          .from('fitness_ai_analyses')
-          .insert({
-            user_id: userSettings.user_id,
-            workouts_analyzed: workouts.length,
-            date_range_start: pastDateStr,
-            date_range_end: today,
-            performance_summary: analysis.performance_summary,
-            recommendations: analysis.recommendations,
-            days_generated: analysis.next_week_plan.length,
-            raw_response: JSON.stringify(analysis),
-          })
-
-        // Insert generated workout days
-        if (analysis.next_week_plan && analysis.next_week_plan.length > 0) {
-          const tomorrow = new Date(today)
-          tomorrow.setDate(tomorrow.getDate() + 1)
-
-          const newDays = analysis.next_week_plan.map(day => {
-            const workoutDate = new Date(tomorrow)
-            workoutDate.setDate(workoutDate.getDate() + day.day_offset)
-            const dateStr = workoutDate.toISOString().split('T')[0]
-
-            return {
-              user_id: userSettings.user_id,
-              workout_date: dateStr,
-              workout_type: day.workout_type,
-              planned_json: day.planned_json,
-              ai_generated: true,
-              ai_notes: day.ai_notes,
-              week_number: Math.ceil((day.day_offset + 1) / 7),
-            }
-          })
-
-          for (const day of newDays) {
-            await supabase
-              .from('workout_days')
-              .upsert(day, { onConflict: 'user_id,workout_date' })
-          }
-        }
-
-        // Update settings
-        await supabase
-          .from('user_fitness_settings')
-          .update({
-            last_ai_analysis_at: new Date().toISOString(),
-            ai_recommendations: analysis.recommendations,
-          })
+        // Find the last workout date to continue from
+        const { data: lastDay } = await supabase
+          .from('workout_days')
+          .select('workout_date')
           .eq('user_id', userSettings.user_id)
+          .order('workout_date', { ascending: false })
+          .limit(1)
+          .single()
+
+        // Start from tomorrow or the day after last workout
+        let startDate: Date
+        if (lastDay) {
+          startDate = parseDateString(lastDay.workout_date)
+          startDate.setDate(startDate.getDate() + 1)
+        } else {
+          startDate = parseDateString(today)
+        }
+
+        // Generate 14 days using templates
+        const plan = generatePlan(startDate, 14, settings || {})
+
+        // Filter out days that already exist
+        const { data: existingDays } = await supabase
+          .from('workout_days')
+          .select('workout_date')
+          .eq('user_id', userSettings.user_id)
+          .in('workout_date', plan.map(p => p.workout_date))
+
+        const existingDates = new Set((existingDays || []).map(d => d.workout_date))
+        const newDays = plan.filter(d => !existingDates.has(d.workout_date))
+
+        if (newDays.length === 0) {
+          continue
+        }
+
+        // Insert new days
+        const toInsert = newDays.map(d => ({
+          user_id: userSettings.user_id,
+          workout_date: d.workout_date,
+          workout_type: d.workout_type,
+          planned_json: d.planned_json,
+          week_number: d.week_number,
+          ai_generated: false,
+        }))
+
+        const { error: insertError } = await supabase
+          .from('workout_days')
+          .insert(toInsert)
+
+        if (insertError) {
+          errors.push(`User ${userSettings.user_id}: ${insertError.message}`)
+          continue
+        }
 
         processed++
       } catch (error) {
