@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { Lesson, Module, ContentBlock, ProgressData, LessonProgress } from '@/lib/pds/types'
 import {
   loadProgress,
@@ -11,6 +11,7 @@ import {
   saveQuickCheckAnswer,
   markFlashcardViewed,
   saveMemo,
+  saveScrollPosition,
   getLessonProgress,
   getMemo,
 } from '@/lib/pds/progress-store'
@@ -33,6 +34,14 @@ type Props = {
 export default function LessonRenderer({ module, lesson }: Props) {
   const [progress, setProgress] = useState<ProgressData | null>(null)
   const [lessonProgress, setLessonProgress] = useState<LessonProgress | null>(null)
+  const [hasRestoredScroll, setHasRestoredScroll] = useState(false)
+  const progressRef = useRef<ProgressData | null>(null)
+  const scrollTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+
+  // Keep progressRef in sync
+  useEffect(() => {
+    progressRef.current = progress
+  }, [progress])
 
   // Load progress on mount
   useEffect(() => {
@@ -40,11 +49,66 @@ export default function LessonRenderer({ module, lesson }: Props) {
     const loaded = loadProgress()
     setProgress(loaded)
     setLessonProgress(getLessonProgress(loaded, module.slug, lesson.slug))
+
     // Then fetch from server and update
     fetchProgress().then((serverProgress) => {
       setProgress(serverProgress)
       setLessonProgress(getLessonProgress(serverProgress, module.slug, lesson.slug))
     })
+  }, [module.slug, lesson.slug])
+
+  // Restore scroll position after content loads
+  useEffect(() => {
+    if (hasRestoredScroll || !lessonProgress?.scrollPosition) return
+
+    // Small delay to ensure content is rendered
+    const timer = setTimeout(() => {
+      const scrollPercent = lessonProgress.scrollPosition || 0
+      if (scrollPercent > 5) { // Only restore if scrolled past 5%
+        const docHeight = document.documentElement.scrollHeight - window.innerHeight
+        const scrollTo = (scrollPercent / 100) * docHeight
+        window.scrollTo({ top: scrollTo, behavior: 'instant' })
+      }
+      setHasRestoredScroll(true)
+    }, 100)
+
+    return () => clearTimeout(timer)
+  }, [lessonProgress?.scrollPosition, hasRestoredScroll])
+
+  // Track scroll position with debounce
+  useEffect(() => {
+    const handleScroll = () => {
+      // Clear existing timeout
+      if (scrollTimeoutRef.current) {
+        clearTimeout(scrollTimeoutRef.current)
+      }
+
+      // Debounce the save
+      scrollTimeoutRef.current = setTimeout(() => {
+        if (!progressRef.current) return
+
+        const docHeight = document.documentElement.scrollHeight - window.innerHeight
+        if (docHeight <= 0) return
+
+        const scrollPercent = Math.round((window.scrollY / docHeight) * 100)
+        const currentLessonProg = getLessonProgress(progressRef.current, module.slug, lesson.slug)
+
+        // Only save if we've scrolled further than before
+        if (scrollPercent > (currentLessonProg?.scrollPosition || 0)) {
+          const updated = saveScrollPosition(progressRef.current, module.slug, lesson.slug, scrollPercent)
+          setProgress(updated)
+          saveProgress(updated)
+        }
+      }, 500) // Save 500ms after scroll stops
+    }
+
+    window.addEventListener('scroll', handleScroll, { passive: true })
+    return () => {
+      window.removeEventListener('scroll', handleScroll)
+      if (scrollTimeoutRef.current) {
+        clearTimeout(scrollTimeoutRef.current)
+      }
+    }
   }, [module.slug, lesson.slug])
 
   const updateProgress = useCallback((newProgress: ProgressData) => {

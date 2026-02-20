@@ -16,6 +16,7 @@ import {
   MessageIcon,
   GraduationCapIcon,
 } from './components/Icons'
+import ResumeBanner from './components/ResumeBanner'
 
 // Module icons mapping
 const moduleIcons: Record<string, React.ComponentType<{ className?: string; size?: number }>> = {
@@ -79,6 +80,11 @@ export default function PDSLandingPage() {
 
   return (
     <div className="min-h-screen">
+      {/* Resume Banner */}
+      <div className="max-w-4xl mx-auto px-4 pt-8">
+        <ResumeBanner progress={progress} mounted={mounted} />
+      </div>
+
       {/* Hero Section */}
       <section className="px-4 py-12 md:py-20">
         <div className="max-w-4xl mx-auto text-center">

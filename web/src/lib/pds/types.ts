@@ -102,6 +102,8 @@ export type LessonProgress = {
   quizAnswers: Record<string, QuizAnswer>
   quickCheckAnswers: Record<string, QuickCheckAnswer>
   flashcardsViewed: Record<string, boolean>
+  scrollPosition?: number // 0-100 percentage of page scrolled
+  lastVisitedAt?: number
 }
 
 export type LessonMemo = {
@@ -119,4 +121,5 @@ export type ProgressData = {
   streakDays: number
   lastActiveDate: string // ISO date string
   totalLessonsCompleted: number
+  lastLessonKey?: string // key of the last lesson visited: `${moduleSlug}/${lessonSlug}`
 }

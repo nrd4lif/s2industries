@@ -15,6 +15,7 @@ import {
   GraduationCapIcon,
   CheckIcon,
 } from '../components/Icons'
+import ResumeBanner from '../components/ResumeBanner'
 
 // Module icons mapping
 const moduleIcons: Record<string, React.ComponentType<{ className?: string; size?: number }>> = {
@@ -39,6 +40,9 @@ export default function ModulesPage() {
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-8">
+      {/* Resume Banner */}
+      <ResumeBanner progress={progress} mounted={mounted} />
+
       {/* Header */}
       <div className="mb-8">
         <nav className="flex items-center gap-2 text-sm text-zinc-500 mb-4">

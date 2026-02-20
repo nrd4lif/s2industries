@@ -23,6 +23,8 @@ export const progressDataSchema = z.object({
       answeredAt: z.number(),
     })),
     flashcardsViewed: z.record(z.string(), z.boolean()),
+    scrollPosition: z.number().optional(),
+    lastVisitedAt: z.number().optional(),
   })),
   memos: z.record(z.string(), z.object({
     moduleSlug: z.string(),
@@ -34,6 +36,7 @@ export const progressDataSchema = z.object({
   streakDays: z.number(),
   lastActiveDate: z.string(),
   totalLessonsCompleted: z.number(),
+  lastLessonKey: z.string().optional(),
 })
 
 export type ProgressDataInput = z.infer<typeof progressDataSchema>

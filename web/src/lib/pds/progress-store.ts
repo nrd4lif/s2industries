@@ -350,3 +350,51 @@ export function getLessonQuizScore(lessonProgress: LessonProgress | null): {
     percentage: total > 0 ? Math.round((correct / total) * 100) : 0,
   }
 }
+
+// Save scroll position for a lesson (0-100 percentage)
+export function saveScrollPosition(
+  progress: ProgressData,
+  moduleSlug: string,
+  lessonSlug: string,
+  scrollPercent: number
+): ProgressData {
+  const key = getLessonKey(moduleSlug, lessonSlug)
+  const existing = progress.lessonProgress[key]
+
+  return {
+    ...progress,
+    lessonProgress: {
+      ...progress.lessonProgress,
+      [key]: {
+        moduleSlug,
+        lessonSlug,
+        completed: existing?.completed || false,
+        completedAt: existing?.completedAt,
+        quizAnswers: existing?.quizAnswers || {},
+        quickCheckAnswers: existing?.quickCheckAnswers || {},
+        flashcardsViewed: existing?.flashcardsViewed || {},
+        scrollPosition: Math.max(existing?.scrollPosition || 0, scrollPercent),
+        lastVisitedAt: Date.now(),
+      },
+    },
+    lastLessonKey: key,
+  }
+}
+
+// Get the last visited lesson info
+export function getLastLesson(progress: ProgressData): {
+  moduleSlug: string
+  lessonSlug: string
+  scrollPosition: number
+} | null {
+  if (!progress.lastLessonKey) return null
+
+  const lessonProg = progress.lessonProgress[progress.lastLessonKey]
+  if (!lessonProg) return null
+
+  return {
+    moduleSlug: lessonProg.moduleSlug,
+    lessonSlug: lessonProg.lessonSlug,
+    scrollPosition: lessonProg.scrollPosition || 0,
+  }
+}
