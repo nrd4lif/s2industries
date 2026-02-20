@@ -74,7 +74,6 @@ export type Module = {
   title: string
   description: string
   weekRange: string // e.g., "Week 1-2"
-  icon: string
   lessons: Lesson[]
 }
 

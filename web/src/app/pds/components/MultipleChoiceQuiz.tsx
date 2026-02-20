@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { QuizBlock, QuizOption } from '@/lib/pds/types'
+import { QuestionIcon, CheckIcon, XIcon } from './Icons'
 
 type Props = {
   quiz: QuizBlock
@@ -92,8 +93,8 @@ export default function MultipleChoiceQuiz({ quiz, existingAnswer, onAnswer }: P
   return (
     <div className="bg-zinc-900/50 rounded-xl p-5 border border-zinc-800">
       <div className="flex items-start gap-3 mb-4">
-        <span className="flex-shrink-0 w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center text-sm font-medium">
-          ?
+        <span className="flex-shrink-0 w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center">
+          <QuestionIcon size={16} />
         </span>
         <div>
           <p className="text-white font-medium">{quiz.question}</p>
@@ -119,8 +120,8 @@ export default function MultipleChoiceQuiz({ quiz, existingAnswer, onAnswer }: P
                     : 'border-zinc-600'
                 }`}
               >
-                {submitted && option.isCorrect && '✓'}
-                {submitted && selectedIds.has(option.id) && !option.isCorrect && '✗'}
+                {submitted && option.isCorrect && <CheckIcon size={10} />}
+                {submitted && selectedIds.has(option.id) && !option.isCorrect && <XIcon size={10} />}
               </span>
               <span className="text-sm text-zinc-200">{option.text}</span>
             </div>
@@ -144,9 +145,10 @@ export default function MultipleChoiceQuiz({ quiz, existingAnswer, onAnswer }: P
             wasCorrect ? 'bg-green-900/20 border border-green-800' : 'bg-amber-900/20 border border-amber-800'
           }`}
         >
-          <p className={`text-sm font-medium mb-1 ${wasCorrect ? 'text-green-400' : 'text-amber-400'}`}>
-            {wasCorrect ? '✓ Correct!' : '✗ Not quite'}
-          </p>
+          <div className={`flex items-center gap-1.5 text-sm font-medium mb-1 ${wasCorrect ? 'text-green-400' : 'text-amber-400'}`}>
+            {wasCorrect ? <CheckIcon size={14} /> : <XIcon size={14} />}
+            <span>{wasCorrect ? 'Correct!' : 'Not quite'}</span>
+          </div>
           {quiz.explanation && (
             <p className="text-sm text-zinc-300">{quiz.explanation}</p>
           )}

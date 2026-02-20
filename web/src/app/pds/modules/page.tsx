@@ -5,6 +5,27 @@ import Link from 'next/link'
 import { modules } from '@/lib/pds/content'
 import { ProgressData } from '@/lib/pds/types'
 import { loadProgress } from '@/lib/pds/progress-store'
+import {
+  ChartIcon,
+  FlaskIcon,
+  TrendingUpIcon,
+  SearchIcon,
+  CpuIcon,
+  MessageIcon,
+  GraduationCapIcon,
+  CheckIcon,
+} from '../components/Icons'
+
+// Module icons mapping
+const moduleIcons: Record<string, React.ComponentType<{ className?: string; size?: number }>> = {
+  foundations: ChartIcon,
+  experimentation: FlaskIcon,
+  metrics: TrendingUpIcon,
+  'causal-inference': SearchIcon,
+  'ml-for-product': CpuIcon,
+  communication: MessageIcon,
+  'advanced-topics': GraduationCapIcon,
+}
 
 export default function ModulesPage() {
   const [progress, setProgress] = useState<ProgressData | null>(null)
@@ -38,6 +59,7 @@ export default function ModulesPage() {
             ? mod.lessons.filter(l => progress.lessonProgress[`${mod.slug}/${l.slug}`]?.completed).length
             : 0
           const isAvailable = lessonCount > 0
+          const ModuleIcon = moduleIcons[mod.slug] || ChartIcon
 
           return (
             <div
@@ -48,8 +70,8 @@ export default function ModulesPage() {
             >
               <div className="p-6">
                 <div className="flex items-start gap-4">
-                  <div className="w-12 h-12 rounded-xl bg-zinc-800 flex items-center justify-center text-2xl flex-shrink-0">
-                    {mod.icon}
+                  <div className="w-12 h-12 rounded-xl bg-zinc-800 flex items-center justify-center flex-shrink-0">
+                    <ModuleIcon size={24} className="text-zinc-400" />
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-3 mb-1">
@@ -101,7 +123,7 @@ export default function ModulesPage() {
                                 ? 'bg-green-600/20 text-green-400'
                                 : 'bg-zinc-800 text-zinc-500 group-hover:text-zinc-300'
                             }`}>
-                              {isCompleted ? '✓' : lessonIndex + 1}
+                              {isCompleted ? <CheckIcon size={12} /> : lessonIndex + 1}
                             </span>
                             <div className="flex-1 min-w-0">
                               <p className={`text-sm font-medium truncate ${

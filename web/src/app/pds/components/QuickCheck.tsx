@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { QuickCheckBlock } from '@/lib/pds/types'
+import { ZapIcon, CheckIcon, XIcon } from './Icons'
 
 type Props = {
   check: QuickCheckBlock
@@ -66,8 +67,8 @@ export default function QuickCheck({ check, existingAnswer, onAnswer }: Props) {
   return (
     <div className="bg-zinc-900/50 rounded-xl p-5 border border-zinc-800">
       <div className="flex items-start gap-3 mb-4">
-        <span className="flex-shrink-0 w-8 h-8 rounded-lg bg-purple-600 flex items-center justify-center text-sm">
-          ⚡
+        <span className="flex-shrink-0 w-8 h-8 rounded-lg bg-purple-600 flex items-center justify-center">
+          <ZapIcon size={16} />
         </span>
         <div>
           <p className="text-xs text-purple-400 font-medium mb-1">Quick Check</p>
@@ -108,9 +109,10 @@ export default function QuickCheck({ check, existingAnswer, onAnswer }: Props) {
             wasCorrect ? 'bg-green-900/20 border border-green-800' : 'bg-amber-900/20 border border-amber-800'
           }`}
         >
-          <p className={`text-sm font-medium mb-1 ${wasCorrect ? 'text-green-400' : 'text-amber-400'}`}>
-            {wasCorrect ? '✓ Correct!' : '✗ Not quite'}
-          </p>
+          <div className={`flex items-center gap-1.5 text-sm font-medium mb-1 ${wasCorrect ? 'text-green-400' : 'text-amber-400'}`}>
+            {wasCorrect ? <CheckIcon size={14} /> : <XIcon size={14} />}
+            <span>{wasCorrect ? 'Correct!' : 'Not quite'}</span>
+          </div>
           {check.explanation && (
             <p className="text-sm text-zinc-300">{check.explanation}</p>
           )}

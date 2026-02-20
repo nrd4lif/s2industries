@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { FlashcardsBlock } from '@/lib/pds/types'
+import { CardsIcon } from './Icons'
 
 type Props = {
   block: FlashcardsBlock
@@ -89,8 +90,8 @@ export default function Flashcards({ block, viewedCards = {}, onCardViewed }: Pr
     <div className="bg-zinc-900/50 rounded-xl p-5 border border-zinc-800">
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
-          <span className="w-8 h-8 rounded-lg bg-amber-600 flex items-center justify-center text-sm">
-            📇
+          <span className="w-8 h-8 rounded-lg bg-amber-600 flex items-center justify-center">
+            <CardsIcon size={16} />
           </span>
           <span className="text-sm font-medium text-zinc-400">Flashcards</span>
         </div>

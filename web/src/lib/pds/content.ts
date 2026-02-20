@@ -6,7 +6,6 @@ export const modules: Module[] = [
     title: 'Statistical Foundations',
     description: 'Core concepts in statistics that power every data science decision',
     weekRange: 'Week 1-2',
-    icon: '📊',
     lessons: [
       {
         slug: 'sampling-variance',
@@ -360,7 +359,6 @@ Just because a result is statistically significant doesn't mean it matters.
     title: 'Experimentation & A/B Testing',
     description: 'Design, analyze, and interpret experiments that drive decisions',
     weekRange: 'Week 3-4',
-    icon: '🧪',
     lessons: []
   },
   {
@@ -368,7 +366,6 @@ Just because a result is statistically significant doesn't mean it matters.
     title: 'Product Metrics & KPIs',
     description: 'Choose and define metrics that align with business goals',
     weekRange: 'Week 5-6',
-    icon: '📈',
     lessons: []
   },
   {
@@ -376,7 +373,6 @@ Just because a result is statistically significant doesn't mean it matters.
     title: 'Causal Inference',
     description: 'Go beyond correlation to understand cause and effect',
     weekRange: 'Week 7-8',
-    icon: '🔍',
     lessons: []
   },
   {
@@ -384,7 +380,6 @@ Just because a result is statistically significant doesn't mean it matters.
     title: 'ML for Product',
     description: 'Apply machine learning to product problems',
     weekRange: 'Week 9-11',
-    icon: '🤖',
     lessons: []
   },
   {
@@ -392,7 +387,6 @@ Just because a result is statistically significant doesn't mean it matters.
     title: 'Data Communication',
     description: 'Tell compelling stories with data',
     weekRange: 'Week 12-13',
-    icon: '💬',
     lessons: []
   },
   {
@@ -400,7 +394,6 @@ Just because a result is statistically significant doesn't mean it matters.
     title: 'Advanced Topics',
     description: 'Bayesian methods, multi-armed bandits, and more',
     weekRange: 'Week 14-16',
-    icon: '🎓',
     lessons: []
   }
 ]

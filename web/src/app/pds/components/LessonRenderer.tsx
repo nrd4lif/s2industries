@@ -22,6 +22,7 @@ import QuickCheck from './QuickCheck'
 import Flashcards from './Flashcards'
 import MicroSim from './MicroSim'
 import MemoPanel from './MemoPanel'
+import { CheckIcon, ArrowLeftIcon, ArrowRightIcon, ClockIcon } from './Icons'
 
 type Props = {
   module: Module
@@ -149,11 +150,15 @@ export default function LessonRenderer({ module, lesson }: Props) {
       <header className="mb-8">
         <div className="flex items-center gap-3 mb-2">
           {isCompleted && (
-            <span className="px-2 py-0.5 bg-green-600/20 text-green-400 text-xs font-medium rounded-full">
-              ✓ Completed
+            <span className="flex items-center gap-1 px-2 py-0.5 bg-green-600/20 text-green-400 text-xs font-medium rounded-full">
+              <CheckIcon size={10} />
+              Completed
             </span>
           )}
-          <span className="text-xs text-zinc-500">{lesson.estimatedMinutes} min</span>
+          <span className="flex items-center gap-1 text-xs text-zinc-500">
+            <ClockIcon size={12} />
+            {lesson.estimatedMinutes} min
+          </span>
         </div>
         <h1 className="text-2xl md:text-3xl font-bold text-white mb-2">
           {lesson.title}
@@ -183,7 +188,7 @@ export default function LessonRenderer({ module, lesson }: Props) {
               href={`/pds/modules/${prevLesson.module.slug}/${prevLesson.lesson.slug}`}
               className="flex items-center gap-2 text-zinc-400 hover:text-white transition-colors"
             >
-              <span>←</span>
+              <ArrowLeftIcon size={16} />
               <div className="text-left">
                 <p className="text-xs text-zinc-500">Previous</p>
                 <p className="text-sm">{prevLesson.lesson.title}</p>
@@ -202,7 +207,7 @@ export default function LessonRenderer({ module, lesson }: Props) {
                 <p className="text-xs text-zinc-500">Next</p>
                 <p className="text-sm">{nextLesson.lesson.title}</p>
               </div>
-              <span>→</span>
+              <ArrowRightIcon size={16} />
             </Link>
           ) : (
             <Link

@@ -8,6 +8,29 @@ import {
   loadProgress,
   calculateCompletionPercentage,
 } from '@/lib/pds/progress-store'
+import {
+  ChartIcon,
+  FlaskIcon,
+  TrendingUpIcon,
+  SearchIcon,
+  CpuIcon,
+  MessageIcon,
+  GraduationCapIcon,
+  CheckIcon,
+  PencilIcon,
+  BookOpenIcon,
+} from '../components/Icons'
+
+// Module icons mapping
+const moduleIcons: Record<string, React.ComponentType<{ className?: string; size?: number }>> = {
+  foundations: ChartIcon,
+  experimentation: FlaskIcon,
+  metrics: TrendingUpIcon,
+  'causal-inference': SearchIcon,
+  'ml-for-product': CpuIcon,
+  communication: MessageIcon,
+  'advanced-topics': GraduationCapIcon,
+}
 
 export default function ProgressPage() {
   const [progress, setProgress] = useState<ProgressData | null>(null)
@@ -168,6 +191,7 @@ export default function ProgressPage() {
               ? mod.lessons.filter(l => progress.lessonProgress[`${mod.slug}/${l.slug}`]?.completed).length
               : 0
             const pct = Math.round((completedCount / lessonCount) * 100)
+            const ModuleIcon = moduleIcons[mod.slug] || ChartIcon
 
             return (
               <Link
@@ -176,7 +200,9 @@ export default function ProgressPage() {
                 className="block bg-zinc-900/50 rounded-xl border border-zinc-800 hover:border-zinc-700 p-4 transition-colors"
               >
                 <div className="flex items-center gap-4">
-                  <span className="text-2xl">{mod.icon}</span>
+                  <div className="w-10 h-10 rounded-lg bg-zinc-800 flex items-center justify-center flex-shrink-0">
+                    <ModuleIcon size={20} className="text-zinc-400" />
+                  </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between mb-1">
                       <h3 className="font-medium text-white truncate">{mod.title}</h3>
@@ -194,7 +220,7 @@ export default function ProgressPage() {
                     </div>
                   </div>
                   {pct === 100 && (
-                    <span className="text-green-400 text-lg">✓</span>
+                    <CheckIcon size={18} className="text-green-400" />
                   )}
                 </div>
               </Link>
@@ -214,14 +240,14 @@ export default function ProgressPage() {
                 href={`/pds/modules/${activity.moduleSlug}/${activity.lessonSlug}`}
                 className="flex items-center gap-4 p-4 hover:bg-zinc-800/50 transition-colors"
               >
-                <span className={`w-8 h-8 rounded-lg flex items-center justify-center text-sm ${
+                <span className={`w-8 h-8 rounded-lg flex items-center justify-center ${
                   activity.type === 'completed'
                     ? 'bg-green-600/20 text-green-400'
                     : activity.type === 'memo'
                     ? 'bg-indigo-600/20 text-indigo-400'
                     : 'bg-blue-600/20 text-blue-400'
                 }`}>
-                  {activity.type === 'completed' ? '✓' : activity.type === 'memo' ? '📝' : '?'}
+                  {activity.type === 'completed' ? <CheckIcon size={14} /> : <PencilIcon size={14} />}
                 </span>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm text-white truncate">
@@ -238,7 +264,9 @@ export default function ProgressPage() {
           </div>
         ) : (
           <div className="bg-zinc-900/50 rounded-xl border border-zinc-800 p-8 text-center">
-            <span className="text-4xl mb-4 block">📚</span>
+            <div className="w-16 h-16 rounded-full bg-zinc-800 flex items-center justify-center mx-auto mb-4">
+              <BookOpenIcon size={32} className="text-zinc-500" />
+            </div>
             <h3 className="text-lg font-semibold text-white mb-2">No Activity Yet</h3>
             <p className="text-zinc-400 mb-4">
               Start learning to see your progress here!

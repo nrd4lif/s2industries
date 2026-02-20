@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { MemoBlock, LessonMemo } from '@/lib/pds/types'
+import { PencilIcon, PlusIcon, MinusIcon } from './Icons'
 
 type Props = {
   block: MemoBlock
@@ -72,16 +73,16 @@ export default function MemoPanel({ block, existingMemo, onSave }: Props) {
         className="w-full flex items-center justify-between p-4 hover:bg-zinc-800/50 transition-colors"
       >
         <div className="flex items-center gap-3">
-          <span className="flex-shrink-0 w-8 h-8 rounded-lg bg-indigo-600 flex items-center justify-center text-sm">
-            📝
+          <span className="flex-shrink-0 w-8 h-8 rounded-lg bg-indigo-600 flex items-center justify-center">
+            <PencilIcon size={16} />
           </span>
           <div className="text-left">
             <p className="text-xs text-indigo-400 font-medium">Decision Memo</p>
             <p className="text-sm text-zinc-300">{block.prompt}</p>
           </div>
         </div>
-        <span className="text-zinc-500 text-lg">
-          {isExpanded ? '−' : '+'}
+        <span className="text-zinc-500">
+          {isExpanded ? <MinusIcon size={18} /> : <PlusIcon size={18} />}
         </span>
       </button>
 

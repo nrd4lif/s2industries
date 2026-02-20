@@ -6,6 +6,31 @@ import { notFound } from 'next/navigation'
 import { getModule } from '@/lib/pds/content'
 import { ProgressData } from '@/lib/pds/types'
 import { loadProgress, getLessonProgress, getLessonQuizScore } from '@/lib/pds/progress-store'
+import {
+  ChartIcon,
+  FlaskIcon,
+  TrendingUpIcon,
+  SearchIcon,
+  CpuIcon,
+  MessageIcon,
+  GraduationCapIcon,
+  CheckIcon,
+  ClockIcon,
+  FileIcon,
+  ArrowRightIcon,
+  ConstructionIcon,
+} from '../../components/Icons'
+
+// Module icons mapping
+const moduleIcons: Record<string, React.ComponentType<{ className?: string; size?: number }>> = {
+  foundations: ChartIcon,
+  experimentation: FlaskIcon,
+  metrics: TrendingUpIcon,
+  'causal-inference': SearchIcon,
+  'ml-for-product': CpuIcon,
+  communication: MessageIcon,
+  'advanced-topics': GraduationCapIcon,
+}
 
 type Props = {
   params: Promise<{ moduleSlug: string }>
@@ -31,6 +56,8 @@ export default function ModulePage({ params }: Props) {
     ? currentModule.lessons.filter(l => progress.lessonProgress[`${currentModule.slug}/${l.slug}`]?.completed).length
     : 0
 
+  const ModuleIcon = moduleIcons[currentModule.slug] || ChartIcon
+
   return (
     <div className="max-w-3xl mx-auto px-4 py-8">
       {/* Breadcrumbs */}
@@ -45,8 +72,8 @@ export default function ModulePage({ params }: Props) {
       {/* Module Header */}
       <header className="mb-8">
         <div className="flex items-center gap-4 mb-4">
-          <div className="w-14 h-14 rounded-xl bg-zinc-800 flex items-center justify-center text-3xl">
-            {currentModule.icon}
+          <div className="w-14 h-14 rounded-xl bg-zinc-800 flex items-center justify-center">
+            <ModuleIcon size={28} className="text-zinc-400" />
           </div>
           <div>
             <span className="text-sm text-blue-400">{currentModule.weekRange}</span>
@@ -98,7 +125,7 @@ export default function ModulePage({ params }: Props) {
                         ? 'bg-green-600/20 text-green-400'
                         : 'bg-zinc-800 text-zinc-400'
                     }`}>
-                      {isCompleted ? '✓' : index + 1}
+                      {isCompleted ? <CheckIcon size={16} /> : index + 1}
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-1">
@@ -113,24 +140,23 @@ export default function ModulePage({ params }: Props) {
 
                       <div className="flex items-center gap-4 text-xs text-zinc-500">
                         <span className="flex items-center gap-1">
-                          <span>⏱</span>
+                          <ClockIcon size={12} />
                           {lesson.estimatedMinutes} min
                         </span>
                         <span className="flex items-center gap-1">
-                          <span>📄</span>
+                          <FileIcon size={12} />
                           {lesson.blocks.length} blocks
                         </span>
                         {quizScore && quizScore.total > 0 && (
                           <span className={`flex items-center gap-1 ${
                             quizScore.percentage >= 80 ? 'text-green-400' : 'text-amber-400'
                           }`}>
-                            <span>📝</span>
                             {quizScore.correct}/{quizScore.total} quiz score
                           </span>
                         )}
                       </div>
                     </div>
-                    <span className="text-zinc-600 text-lg">→</span>
+                    <ArrowRightIcon size={18} className="text-zinc-600" />
                   </div>
                 </div>
               </Link>
@@ -139,7 +165,9 @@ export default function ModulePage({ params }: Props) {
         </div>
       ) : (
         <div className="bg-zinc-900/50 rounded-xl border border-zinc-800 p-8 text-center">
-          <span className="text-4xl mb-4 block">🚧</span>
+          <div className="w-16 h-16 rounded-full bg-zinc-800 flex items-center justify-center mx-auto mb-4">
+            <ConstructionIcon size={32} className="text-zinc-500" />
+          </div>
           <h3 className="text-lg font-semibold text-white mb-2">Coming Soon</h3>
           <p className="text-zinc-400">
             Lessons for this module are being developed. Check back soon!

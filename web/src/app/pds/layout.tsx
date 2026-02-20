@@ -2,11 +2,12 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
+import { HomeIcon, BookOpenIcon, ProgressIcon, ArrowLeftIcon } from './components/Icons'
 
 const navItems = [
-  { href: '/pds', label: 'Home', icon: '📚' },
-  { href: '/pds/modules', label: 'Modules', icon: '📖' },
-  { href: '/pds/progress', label: 'Progress', icon: '📊' },
+  { href: '/pds', label: 'Home', Icon: HomeIcon },
+  { href: '/pds/modules', label: 'Modules', Icon: BookOpenIcon },
+  { href: '/pds/progress', label: 'Progress', Icon: ProgressIcon },
 ]
 
 export default function PDSLayout({
@@ -44,7 +45,7 @@ export default function PDSLayout({
                       : 'text-zinc-400 hover:text-white hover:bg-zinc-800'
                   }`}
                 >
-                  <span>{item.icon}</span>
+                  <item.Icon size={18} />
                   {item.label}
                 </Link>
               )
@@ -57,7 +58,8 @@ export default function PDSLayout({
               href="/"
               className="flex items-center gap-2 text-sm text-zinc-500 hover:text-white transition-colors"
             >
-              ← Back to S2
+              <ArrowLeftIcon size={16} />
+              Back to S2
             </Link>
           </div>
         </div>
@@ -71,8 +73,9 @@ export default function PDSLayout({
             <Link href="/pds" className="text-lg font-bold text-white">
               PDS
             </Link>
-            <Link href="/" className="text-sm text-zinc-500">
-              ← S2
+            <Link href="/" className="flex items-center gap-1 text-sm text-zinc-500">
+              <ArrowLeftIcon size={14} />
+              S2
             </Link>
           </div>
         </header>
@@ -96,7 +99,7 @@ export default function PDSLayout({
                     isActive ? 'text-blue-400' : 'text-zinc-500'
                   }`}
                 >
-                  <span className="text-xl">{item.icon}</span>
+                  <item.Icon size={20} />
                   <span className="text-xs mt-1">{item.label}</span>
                 </Link>
               )

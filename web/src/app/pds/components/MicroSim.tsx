@@ -2,6 +2,7 @@
 
 import { useState, useCallback, useMemo } from 'react'
 import { MicroSimBlock } from '@/lib/pds/types'
+import { MicroscopeIcon } from './Icons'
 
 type Props = {
   block: MicroSimBlock
@@ -445,8 +446,8 @@ export default function MicroSim({ block }: Props) {
   return (
     <div className="bg-zinc-900/50 rounded-xl p-5 border border-zinc-800">
       <div className="flex items-start gap-3 mb-4">
-        <span className="flex-shrink-0 w-8 h-8 rounded-lg bg-cyan-600 flex items-center justify-center text-sm">
-          🔬
+        <span className="flex-shrink-0 w-8 h-8 rounded-lg bg-cyan-600 flex items-center justify-center">
+          <MicroscopeIcon size={16} />
         </span>
         <div>
           <p className="text-xs text-cyan-400 font-medium mb-0.5">Interactive Simulation</p>

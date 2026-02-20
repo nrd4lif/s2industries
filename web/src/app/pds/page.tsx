@@ -5,6 +5,28 @@ import Link from 'next/link'
 import { modules, getTotalLessonCount } from '@/lib/pds/content'
 import { ProgressData } from '@/lib/pds/types'
 import { loadProgress, calculateCompletionPercentage } from '@/lib/pds/progress-store'
+import {
+  ChartIcon,
+  FlaskIcon,
+  TargetIcon,
+  BookIcon,
+  TrendingUpIcon,
+  SearchIcon,
+  CpuIcon,
+  MessageIcon,
+  GraduationCapIcon,
+} from './components/Icons'
+
+// Module icons mapping
+const moduleIcons: Record<string, React.ComponentType<{ className?: string; size?: number }>> = {
+  foundations: ChartIcon,
+  experimentation: FlaskIcon,
+  metrics: TrendingUpIcon,
+  'causal-inference': SearchIcon,
+  'ml-for-product': CpuIcon,
+  communication: MessageIcon,
+  'advanced-topics': GraduationCapIcon,
+}
 
 // 16-week roadmap milestones
 const roadmap = [
@@ -15,6 +37,13 @@ const roadmap = [
   { week: '9-11', title: 'ML for Product', description: 'Classification, ranking, recommendation systems' },
   { week: '12-13', title: 'Communication', description: 'Data storytelling, dashboards, stakeholder management' },
   { week: '14-16', title: 'Advanced Topics', description: 'Bayesian methods, bandits, sequential testing' },
+]
+
+// What you'll learn items
+const learningItems = [
+  { Icon: ChartIcon, title: 'Statistics', description: 'From sampling theory to Bayesian inference—the math behind every data decision' },
+  { Icon: FlaskIcon, title: 'Experimentation', description: 'Design, run, and analyze A/B tests that drive real product impact' },
+  { Icon: TargetIcon, title: 'Product Sense', description: 'Choose metrics, interpret results, and communicate findings to stakeholders' },
 ]
 
 export default function PDSLandingPage() {
@@ -51,7 +80,7 @@ export default function PDSLandingPage() {
       <section className="px-4 py-12 md:py-20">
         <div className="max-w-4xl mx-auto text-center">
           <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-blue-600/10 rounded-full text-blue-400 text-sm mb-6">
-            <span>📊</span>
+            <BookIcon size={16} />
             <span>16-Week Program</span>
           </div>
 
@@ -117,13 +146,11 @@ export default function PDSLandingPage() {
         <div className="max-w-4xl mx-auto">
           <h2 className="text-2xl font-bold text-white mb-8 text-center">What You&apos;ll Learn</h2>
           <div className="grid md:grid-cols-3 gap-6">
-            {[
-              { icon: '📊', title: 'Statistics', description: 'From sampling theory to Bayesian inference—the math behind every data decision' },
-              { icon: '🧪', title: 'Experimentation', description: 'Design, run, and analyze A/B tests that drive real product impact' },
-              { icon: '🎯', title: 'Product Sense', description: 'Choose metrics, interpret results, and communicate findings to stakeholders' },
-            ].map((item) => (
+            {learningItems.map((item) => (
               <div key={item.title} className="bg-zinc-800/50 rounded-xl p-6 border border-zinc-800">
-                <span className="text-3xl mb-4 block">{item.icon}</span>
+                <div className="w-12 h-12 rounded-lg bg-zinc-700/50 flex items-center justify-center mb-4">
+                  <item.Icon size={24} className="text-blue-400" />
+                </div>
                 <h3 className="text-lg font-semibold text-white mb-2">{item.title}</h3>
                 <p className="text-sm text-zinc-400">{item.description}</p>
               </div>
@@ -184,6 +211,7 @@ export default function PDSLandingPage() {
               const completedCount = mounted && progress
                 ? mod.lessons.filter(l => progress.lessonProgress[`${mod.slug}/${l.slug}`]?.completed).length
                 : 0
+              const ModuleIcon = moduleIcons[mod.slug] || ChartIcon
 
               return (
                 <Link
@@ -194,7 +222,9 @@ export default function PDSLandingPage() {
                   }`}
                 >
                   <div className="flex items-start gap-4">
-                    <span className="text-2xl">{mod.icon}</span>
+                    <div className="w-10 h-10 rounded-lg bg-zinc-700/50 flex items-center justify-center flex-shrink-0">
+                      <ModuleIcon size={20} className="text-zinc-400" />
+                    </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-1">
                         <span className="text-xs text-zinc-500">{mod.weekRange}</span>
