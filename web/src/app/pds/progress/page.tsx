@@ -6,6 +6,8 @@ import { modules, getTotalLessonCount } from '@/lib/pds/content'
 import { ProgressData } from '@/lib/pds/types'
 import {
   loadProgress,
+  fetchProgress,
+  syncProgress,
   calculateCompletionPercentage,
 } from '@/lib/pds/progress-store'
 import {
@@ -39,6 +41,7 @@ export default function ProgressPage() {
   useEffect(() => {
     setMounted(true)
     setProgress(loadProgress())
+    fetchProgress().then(setProgress)
   }, [])
 
   const totalLessons = getTotalLessonCount()
@@ -285,10 +288,13 @@ export default function ProgressPage() {
       {mounted && progress && progress.totalLessonsCompleted > 0 && (
         <div className="mt-8 pt-8 border-t border-zinc-800">
           <button
-            onClick={() => {
+            onClick={async () => {
               if (confirm('Are you sure you want to reset all progress? This cannot be undone.')) {
                 localStorage.removeItem('pds-progress')
-                setProgress(loadProgress())
+                const fresh = loadProgress()
+                setProgress(fresh)
+                // Sync reset to server
+                await syncProgress(fresh)
               }
             }}
             className="text-sm text-zinc-600 hover:text-red-400 transition-colors"

@@ -18,7 +18,8 @@ function getTodayDateString(): string {
   return new Date().toISOString().split('T')[0]
 }
 
-export function loadProgress(): ProgressData {
+// Local storage helpers (used as cache)
+function loadFromLocalStorage(): ProgressData {
   if (typeof window === 'undefined') {
     return getDefaultProgress()
   }
@@ -31,9 +32,7 @@ export function loadProgress(): ProgressData {
 
     const parsed = JSON.parse(stored) as ProgressData
 
-    // Version migration if needed
     if (parsed.version !== CURRENT_VERSION) {
-      // For now, just update version
       parsed.version = CURRENT_VERSION
     }
 
@@ -43,14 +42,64 @@ export function loadProgress(): ProgressData {
   }
 }
 
-export function saveProgress(progress: ProgressData): void {
+function saveToLocalStorage(progress: ProgressData): void {
   if (typeof window === 'undefined') return
 
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(progress))
   } catch (e) {
-    console.error('Failed to save PDS progress:', e)
+    console.error('Failed to save PDS progress to localStorage:', e)
   }
+}
+
+// API helpers
+export async function fetchProgress(): Promise<ProgressData> {
+  try {
+    const response = await fetch('/api/pds/progress')
+    if (!response.ok) {
+      // If unauthorized or error, fall back to localStorage
+      return loadFromLocalStorage()
+    }
+    const data = await response.json()
+    const progress = data.progress || getDefaultProgress()
+
+    // Cache in localStorage
+    saveToLocalStorage(progress)
+
+    return progress
+  } catch {
+    // Network error, use localStorage cache
+    return loadFromLocalStorage()
+  }
+}
+
+export async function syncProgress(progress: ProgressData): Promise<void> {
+  // Always save to localStorage first (instant)
+  saveToLocalStorage(progress)
+
+  // Then sync to server (async)
+  try {
+    await fetch('/api/pds/progress', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(progress),
+    })
+  } catch (e) {
+    console.error('Failed to sync PDS progress to server:', e)
+    // Progress is still saved in localStorage
+  }
+}
+
+// Synchronous load for initial render (from localStorage cache)
+export function loadProgress(): ProgressData {
+  return loadFromLocalStorage()
+}
+
+// Synchronous save that also triggers async sync
+export function saveProgress(progress: ProgressData): void {
+  saveToLocalStorage(progress)
+  // Fire and forget the server sync
+  syncProgress(progress).catch(() => {})
 }
 
 export function updateStreak(progress: ProgressData): ProgressData {
@@ -58,11 +107,9 @@ export function updateStreak(progress: ProgressData): ProgressData {
   const lastActive = progress.lastActiveDate
 
   if (lastActive === today) {
-    // Already active today, no change
     return progress
   }
 
-  // Check if yesterday
   const yesterday = new Date()
   yesterday.setDate(yesterday.getDate() - 1)
   const yesterdayStr = yesterday.toISOString().split('T')[0]
@@ -70,13 +117,10 @@ export function updateStreak(progress: ProgressData): ProgressData {
   let newStreak = progress.streakDays
 
   if (lastActive === yesterdayStr) {
-    // Continuing streak
     newStreak += 1
   } else if (!lastActive) {
-    // First day
     newStreak = 1
   } else {
-    // Streak broken, reset
     newStreak = 1
   }
 
@@ -279,7 +323,6 @@ export function getMemo(
   return progress.memos[key] || null
 }
 
-// Calculate overall completion percentage
 export function calculateCompletionPercentage(
   progress: ProgressData,
   totalLessons: number
@@ -288,7 +331,6 @@ export function calculateCompletionPercentage(
   return Math.round((progress.totalLessonsCompleted / totalLessons) * 100)
 }
 
-// Get quiz score for a lesson
 export function getLessonQuizScore(lessonProgress: LessonProgress | null): {
   correct: number
   total: number

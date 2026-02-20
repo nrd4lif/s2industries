@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { getModule } from '@/lib/pds/content'
 import { ProgressData } from '@/lib/pds/types'
-import { loadProgress, getLessonProgress, getLessonQuizScore } from '@/lib/pds/progress-store'
+import { loadProgress, fetchProgress, getLessonProgress, getLessonQuizScore } from '@/lib/pds/progress-store'
 import {
   ChartIcon,
   FlaskIcon,
@@ -46,6 +46,7 @@ export default function ModulePage({ params }: Props) {
   useEffect(() => {
     setMounted(true)
     setProgress(loadProgress())
+    fetchProgress().then(setProgress)
   }, [])
 
   if (!currentModule) {

@@ -157,3 +157,28 @@ create trigger wallet_config_updated_at
 create trigger trading_plans_updated_at
   before update on trading_plans
   for each row execute function update_updated_at();
+
+-- PDS (Product Data Science) Progress
+create table pds_progress (
+  id uuid primary key default uuid_generate_v4(),
+  user_id uuid references auth.users(id) on delete cascade not null unique,
+  progress_data jsonb not null default '{}',
+  created_at timestamptz default now(),
+  updated_at timestamptz default now()
+);
+
+-- RLS for pds_progress
+alter table pds_progress enable row level security;
+
+create policy "Users can view own pds progress" on pds_progress
+  for select using (auth.uid() = user_id);
+create policy "Users can insert own pds progress" on pds_progress
+  for insert with check (auth.uid() = user_id);
+create policy "Users can update own pds progress" on pds_progress
+  for update using (auth.uid() = user_id);
+create policy "Users can delete own pds progress" on pds_progress
+  for delete using (auth.uid() = user_id);
+
+create trigger pds_progress_updated_at
+  before update on pds_progress
+  for each row execute function update_updated_at();

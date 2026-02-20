@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { modules } from '@/lib/pds/content'
 import { ProgressData } from '@/lib/pds/types'
-import { loadProgress } from '@/lib/pds/progress-store'
+import { loadProgress, fetchProgress } from '@/lib/pds/progress-store'
 import {
   ChartIcon,
   FlaskIcon,
@@ -34,6 +34,7 @@ export default function ModulesPage() {
   useEffect(() => {
     setMounted(true)
     setProgress(loadProgress())
+    fetchProgress().then(setProgress)
   }, [])
 
   return (

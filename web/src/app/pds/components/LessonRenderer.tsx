@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { Lesson, Module, ContentBlock, ProgressData, LessonProgress } from '@/lib/pds/types'
 import {
   loadProgress,
+  fetchProgress,
   saveProgress,
   setLessonCompleted,
   saveQuizAnswer,
@@ -35,9 +36,15 @@ export default function LessonRenderer({ module, lesson }: Props) {
 
   // Load progress on mount
   useEffect(() => {
+    // Load from localStorage first (instant)
     const loaded = loadProgress()
     setProgress(loaded)
     setLessonProgress(getLessonProgress(loaded, module.slug, lesson.slug))
+    // Then fetch from server and update
+    fetchProgress().then((serverProgress) => {
+      setProgress(serverProgress)
+      setLessonProgress(getLessonProgress(serverProgress, module.slug, lesson.slug))
+    })
   }, [module.slug, lesson.slug])
 
   const updateProgress = useCallback((newProgress: ProgressData) => {

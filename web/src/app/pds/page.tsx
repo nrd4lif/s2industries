@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { modules, getTotalLessonCount } from '@/lib/pds/content'
 import { ProgressData } from '@/lib/pds/types'
-import { loadProgress, calculateCompletionPercentage } from '@/lib/pds/progress-store'
+import { loadProgress, fetchProgress, calculateCompletionPercentage } from '@/lib/pds/progress-store'
 import {
   ChartIcon,
   FlaskIcon,
@@ -52,7 +52,10 @@ export default function PDSLandingPage() {
 
   useEffect(() => {
     setMounted(true)
+    // Load from localStorage first (instant)
     setProgress(loadProgress())
+    // Then fetch from server and update
+    fetchProgress().then(setProgress)
   }, [])
 
   const totalLessons = getTotalLessonCount()
