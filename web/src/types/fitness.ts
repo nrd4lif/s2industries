@@ -69,6 +69,7 @@ export interface WorkoutDay {
   actual_json: ActualWorkout
   completed_at: string | null
   notes: string | null
+  food_notes: string | null  // Optional notes about diet for the day (restaurant meals, alcohol, etc.)
   week_number: number
   ai_generated: boolean
   ai_notes: string | null

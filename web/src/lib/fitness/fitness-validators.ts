@@ -74,6 +74,7 @@ export const updateWorkoutDaySchema = z.object({
     restPlannedSchema,
   ]).nullable().optional(),
   notes: z.string().max(1000).nullable().optional(),
+  food_notes: z.string().max(1000).nullable().optional(),
 })
 
 // Mark complete schema

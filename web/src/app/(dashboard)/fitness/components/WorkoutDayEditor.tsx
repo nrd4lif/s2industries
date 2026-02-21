@@ -22,6 +22,7 @@ export default function WorkoutDayEditor({ workout }: WorkoutDayEditorProps) {
   const [isSaving, setIsSaving] = useState(false)
   const [isCompleting, setIsCompleting] = useState(false)
   const [notes, setNotes] = useState(workout.notes || '')
+  const [foodNotes, setFoodNotes] = useState(workout.food_notes || '')
 
   // Planned workout state
   const [plannedWorkout, setPlannedWorkout] = useState(workout.planned_json)
@@ -43,7 +44,7 @@ export default function WorkoutDayEditor({ workout }: WorkoutDayEditorProps) {
   const handleSave = async () => {
     setIsSaving(true)
     try {
-      const body: Record<string, unknown> = { notes }
+      const body: Record<string, unknown> = { notes, food_notes: foodNotes }
 
       if (activeTab === 'planned') {
         // Save both planned and actual (since they're synced when editing planned)
@@ -159,14 +160,28 @@ export default function WorkoutDayEditor({ workout }: WorkoutDayEditorProps) {
       </div>
 
       {/* Notes */}
-      <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-6">
-        <h3 className="text-lg font-semibold text-white mb-4">Notes</h3>
-        <textarea
-          value={notes}
-          onChange={(e) => setNotes(e.target.value)}
-          placeholder="Add notes about this workout..."
-          className="w-full h-24 px-4 py-3 bg-zinc-800 border border-zinc-700 rounded-lg text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
-        />
+      <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-6 space-y-4">
+        <div>
+          <h3 className="text-lg font-semibold text-white mb-2">Workout Notes</h3>
+          <textarea
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+            placeholder="Add notes about this workout..."
+            className="w-full h-20 px-4 py-3 bg-zinc-800 border border-zinc-700 rounded-lg text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+        </div>
+        <div>
+          <h3 className="text-sm font-medium text-zinc-400 mb-2 flex items-center gap-2">
+            <span>Food Notes</span>
+            <span className="text-xs text-zinc-500 font-normal">(optional - restaurant meals, alcohol, etc.)</span>
+          </h3>
+          <textarea
+            value={foodNotes}
+            onChange={(e) => setFoodNotes(e.target.value)}
+            placeholder="e.g., Went to steakhouse - big meal with drinks..."
+            className="w-full h-16 px-4 py-3 bg-zinc-800 border border-zinc-700 rounded-lg text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+          />
+        </div>
       </div>
 
       {/* Actions */}

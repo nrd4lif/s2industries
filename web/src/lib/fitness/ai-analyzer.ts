@@ -123,6 +123,13 @@ PROGRESSION RULES:
 - If user missed workouts or underperformed, maintain or slightly reduce weights
 - Recommend deload (reduce weights 40-50%) every 4-6 weeks or when signs of fatigue
 
+NUTRITION NOTES:
+- The user may include "food notes" for some days indicating dietary deviations (restaurant meals, alcohol, high-fat meals, etc.)
+- Consider these when recommending workout intensity the following day:
+  - Heavy meal/alcohol → suggest lighter workout, focus on form over weight
+  - High fat/carb meal → may have extra energy, but don't push too hard
+  - If multiple consecutive days of poor nutrition → mention it as a warning and suggest returning to normal diet
+
 OUTPUT FORMAT:
 Respond with valid JSON matching this structure exactly:
 {
@@ -205,6 +212,9 @@ function formatWorkoutsForAnalysis(workouts: WorkoutDay[]): string {
 
     if (w.notes) {
       analysis += `  Notes: ${w.notes}\n`
+    }
+    if (w.food_notes) {
+      analysis += `  Food notes: ${w.food_notes}\n`
     }
   })
 

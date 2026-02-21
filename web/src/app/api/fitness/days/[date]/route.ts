@@ -59,6 +59,9 @@ export async function PUT(
     if (input.notes !== undefined) {
       updateData.notes = input.notes
     }
+    if (input.food_notes !== undefined) {
+      updateData.food_notes = input.food_notes
+    }
 
     const { data: day, error } = await supabase
       .from('workout_days')
