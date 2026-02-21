@@ -31,13 +31,26 @@ export default function WorkoutDayEditor({ workout }: WorkoutDayEditorProps) {
     workout.actual_json || workout.planned_json
   )
 
+  // Sync planned changes to actual (only if not completed)
+  const updatePlannedWorkout = (updated: typeof plannedWorkout) => {
+    setPlannedWorkout(updated)
+    // Auto-sync to actual if workout isn't completed yet
+    if (!workout.completed_at) {
+      setActualWorkout(updated)
+    }
+  }
+
   const handleSave = async () => {
     setIsSaving(true)
     try {
       const body: Record<string, unknown> = { notes }
 
       if (activeTab === 'planned') {
+        // Save both planned and actual (since they're synced when editing planned)
         body.planned_json = plannedWorkout
+        if (!workout.completed_at) {
+          body.actual_json = plannedWorkout
+        }
       } else {
         body.actual_json = actualWorkout
       }
@@ -81,7 +94,7 @@ export default function WorkoutDayEditor({ workout }: WorkoutDayEditorProps) {
   }
 
   const currentWorkout = activeTab === 'planned' ? plannedWorkout : actualWorkout
-  const setCurrentWorkout = activeTab === 'planned' ? setPlannedWorkout : setActualWorkout
+  const setCurrentWorkout = activeTab === 'planned' ? updatePlannedWorkout : setActualWorkout
 
   return (
     <div className="space-y-6">
@@ -253,6 +266,12 @@ function CardioSegmentEditor({
   onChange: (segment: CardioSegment) => void
   highlight?: boolean
 }) {
+  // Use string state for inputs to allow clearing
+  const handleNumberChange = (field: keyof CardioSegment, value: string) => {
+    const parsed = field === 'duration' ? parseInt(value) : parseFloat(value)
+    onChange({ ...segment, [field]: isNaN(parsed) ? 0 : parsed })
+  }
+
   return (
     <div
       className={`p-4 rounded-lg ${
@@ -267,11 +286,11 @@ function CardioSegmentEditor({
           <label className="block text-xs sm:text-sm text-zinc-500 mb-1">Duration</label>
           <div className="flex items-center gap-1">
             <input
-              type="number"
-              value={segment.duration}
-              onChange={(e) => onChange({ ...segment, duration: parseInt(e.target.value) || 0 })}
-              min="1"
-              max="120"
+              type="text"
+              inputMode="numeric"
+              value={segment.duration === 0 ? '' : segment.duration}
+              onChange={(e) => handleNumberChange('duration', e.target.value)}
+              placeholder="0"
               className="w-full px-2 sm:px-3 py-2 bg-zinc-700 border border-zinc-600 rounded text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
             <span className="text-xs text-zinc-500 sm:hidden">min</span>
@@ -281,12 +300,11 @@ function CardioSegmentEditor({
           <label className="block text-xs sm:text-sm text-zinc-500 mb-1">Incline</label>
           <div className="flex items-center gap-1">
             <input
-              type="number"
-              value={segment.incline}
-              onChange={(e) => onChange({ ...segment, incline: parseFloat(e.target.value) || 0 })}
-              min="0"
-              max="15"
-              step="0.5"
+              type="text"
+              inputMode="decimal"
+              value={segment.incline === 0 ? '' : segment.incline}
+              onChange={(e) => handleNumberChange('incline', e.target.value)}
+              placeholder="0"
               className="w-full px-2 sm:px-3 py-2 bg-zinc-700 border border-zinc-600 rounded text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
             <span className="text-xs text-zinc-500 sm:hidden">%</span>
@@ -296,12 +314,11 @@ function CardioSegmentEditor({
           <label className="block text-xs sm:text-sm text-zinc-500 mb-1">Speed</label>
           <div className="flex items-center gap-1">
             <input
-              type="number"
-              value={segment.speed}
-              onChange={(e) => onChange({ ...segment, speed: parseFloat(e.target.value) || 0 })}
-              min="0.5"
-              max="12"
-              step="0.1"
+              type="text"
+              inputMode="decimal"
+              value={segment.speed === 0 ? '' : segment.speed}
+              onChange={(e) => handleNumberChange('speed', e.target.value)}
+              placeholder="0"
               className="w-full px-2 sm:px-3 py-2 bg-zinc-700 border border-zinc-600 rounded text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
             <span className="text-xs text-zinc-500 sm:hidden">mph</span>
@@ -416,35 +433,38 @@ function ExerciseEditor({
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 sm:gap-4">
         <div>
           <label className="block text-xs sm:text-sm text-zinc-500 mb-1">Sets</label>
-          <input
-            type="number"
+          <select
             value={exercise.sets}
-            onChange={(e) => onChange({ ...exercise, sets: parseInt(e.target.value) || 1 })}
-            min="1"
-            max="10"
+            onChange={(e) => onChange({ ...exercise, sets: parseInt(e.target.value) })}
             className="w-full px-2 sm:px-3 py-2 bg-zinc-700 border border-zinc-600 rounded text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
+          >
+            {Array.from({ length: 10 }, (_, i) => i + 1).map((n) => (
+              <option key={n} value={n}>{n}</option>
+            ))}
+          </select>
         </div>
         <div>
           <label className="block text-xs sm:text-sm text-zinc-500 mb-1">Reps</label>
           <div className="flex gap-1 items-center">
-            <input
-              type="number"
+            <select
               value={exercise.reps_min}
-              onChange={(e) => onChange({ ...exercise, reps_min: parseInt(e.target.value) || 1 })}
-              min="1"
-              max="100"
+              onChange={(e) => onChange({ ...exercise, reps_min: parseInt(e.target.value) })}
               className="w-full px-1 sm:px-2 py-2 bg-zinc-700 border border-zinc-600 rounded text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
+            >
+              {Array.from({ length: 30 }, (_, i) => i + 1).map((n) => (
+                <option key={n} value={n}>{n}</option>
+              ))}
+            </select>
             <span className="text-zinc-500 text-xs">-</span>
-            <input
-              type="number"
+            <select
               value={exercise.reps_max}
-              onChange={(e) => onChange({ ...exercise, reps_max: parseInt(e.target.value) || 1 })}
-              min="1"
-              max="100"
+              onChange={(e) => onChange({ ...exercise, reps_max: parseInt(e.target.value) })}
               className="w-full px-1 sm:px-2 py-2 bg-zinc-700 border border-zinc-600 rounded text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
+            >
+              {Array.from({ length: 30 }, (_, i) => i + 1).map((n) => (
+                <option key={n} value={n}>{n}</option>
+              ))}
+            </select>
           </div>
         </div>
         <div>
